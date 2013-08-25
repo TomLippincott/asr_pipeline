@@ -1,4 +1,4 @@
-{-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE InstanceSigs, DisambiguateRecordFields, GADTSyntax #-}
 
 import System.Process (readProcessWithExitCode)
 import GHC.IO.Handle (hPutStr, hGetContents, hSetBinaryMode)
@@ -36,6 +36,13 @@ data Host = Host {hostname :: String,
 data Host = Host {hostname :: String,
                   fields :: [(String, String)]
                   } deriving (Show)
+
+data Job = Job {name :: String,
+                commands :: [String],
+                resources :: Map String String,
+                path :: String
+                }
+
 
 qnodes :: IO (Either ParseError [Host])
 qnodes = do
