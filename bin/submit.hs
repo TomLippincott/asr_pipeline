@@ -1,25 +1,12 @@
-{-# LANGUAGE InstanceSigs, DisambiguateRecordFields, GADTSyntax #-}
+{-# LANGUAGE InstanceSigs, DisambiguateRecordFields, GADTSyntax, DisambiguateRecordFields #-}
 
 import System.Process (readProcessWithExitCode)
 import GHC.IO.Handle (hPutStr, hGetContents, hSetBinaryMode)
 import qualified Text.ParserCombinators.Parsec as TPP
-import Data.Map (Map)
-import Text.ParserCombinators.Parsec (parse, ParseError, GenParser, many, eof, noneOf, oneOf, char, skipMany, skipMany1, space, spaces, newline)
+import Data.Map (Map, fromList, toList)
+import Text.ParserCombinators.Parsec (parse, ParseError, GenParser, many, eof, noneOf, oneOf, char, skipMany, skipMany1, space, spaces, newline, endBy)
+import Data.List (intersperse)
 
-data Job = Job {name :: String,
-                dependencies :: [Int],
-                resources :: [String],
-                array :: Maybe String,
-                commands :: [String]
-               }
-
-instance Show Job where
-  show :: Job -> String
-  show x = "#PBS -N " ++ name x
-
-
-submitJob :: Job -> Either String Int
-submitJob j = Right 10
 {-
 data Host = Host {hostname :: String,
                   state :: String,
@@ -31,23 +18,25 @@ data Host = Host {hostname :: String,
                   } deriving (Show)
 -}
 
---newtype Host = Host [String] deriving (Show)
-
 data Host = Host {hostname :: String,
-                  fields :: [(String, String)]
+                  fields :: Map String String
                   } deriving (Show)
 
-data Job = Job {name :: String,
-                commands :: [String],
-                resources :: Map String String,
-                path :: String
-                }
+data JobSpec = JobSpec {name :: String,
+                        commands :: [String],
+                        resources :: Map String String,
+                        dependencies :: [Job],
+                        path :: String
+                       }
 
+instance Show JobSpec where
+  show :: JobSpec -> String
+  show j = concat $ intersperse "\n" $ ["#PBS -N " ++ name j] ++ ["#PBS -l " ++ x ++ "=" ++ y|(x, y) <- toList $ resources j] ++ ["cd " ++ path j] ++ [x|x <- commands j]
 
 qnodes :: IO (Either ParseError [Host])
 qnodes = do
   (exit, stdout, stderr) <- readProcessWithExitCode "qnodes" [] ""  
-  return $ parse nodeInfo "" stdout --[] --map (Host) (lines stdout)
+  return $ parse nodeInfo "" stdout
   
 nodeInfo :: GenParser Char st [Host]
 nodeInfo = do
@@ -60,7 +49,7 @@ node = do
   hostname <- host
   fields <- many field
   emptyLine
-  return $ Host {hostname=hostname, fields=fields}
+  return $ Host {hostname=hostname, fields=fromList fields}
 
 field :: GenParser Char st (String, String)
 field = do
@@ -83,31 +72,18 @@ emptyLine = do
   return ()
 
 eol = char '\n'
-  
-  
--- nodeInfo = do 
---   result <- many host
---   eof
---   return result
 
--- host :: GenParser Char st [String]
--- host = 
---     do result <- cells
---        eol                       -- end of line
---        return result
+data Job = Job Int | Array Int Int deriving (Show)
 
-
-
-
+submitJob :: JobSpec -> IO (Either String Job)
+submitJob j = do
+  (exit, stdout, stderr) <- readProcessWithExitCode "qsub" ["-V", "-h"] (show j)
+  return $ Left $ stdout
 
 main = do
-  (exit, stdout, stderr) <- readProcessWithExitCode "ls" [] ""
-  let j = Job "testjob" [] [] Nothing []
-      i = submitJob j
+  let jobSpec = JobSpec "testjob" ["sleep 30", "exit 0"] (fromList [("hosts", "calculon-minor")]) [] "/mnt/asr"
+  jobId <- submitJob jobSpec
   (Right hosts) <- qnodes
-  print hosts
-  print j
-  print i
-  print exit
-  print stderr
-  print stdout
+  print $ map hostname hosts
+  print jobSpec
+  print jobId

@@ -25,14 +25,29 @@ def meta_open(file_name, mode="r"):
     else:
         return open(file_name, mode)
 
-def run_command(cmd, env={}, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE):
+def run_command(cmd, env={}, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, data=None):
     """
     Simple convenience wrapper for running commands (not an actual Builder).
     """
     logging.info("Running command: %s", cmd)
     process = subprocess.Popen(shlex.split(cmd), env=env, stdin=stdin, stdout=stdout, stderr=stderr)
-    out, err = process.communicate()
+    if data:
+        out, err = process.communicate(data)
+    else:
+        out, err = process.communicate()
     return out, err, process.returncode == 0
+
+
+def experiment(target, source, env):
+    return None
+
+def experiment_emitter(target, source, env):
+    new_targets = [
+        os.path.join(target[0].rstr(), "gcfg.py"),
+        os.path.join(target[0].rstr(), "dlatSI", "cfg.py"),
+        os.path.join(target[0].rstr(), "dlatSA", "cfg.py"),
+        ]
+    return new_targets, source
 
 #
 # PREPARE
@@ -69,6 +84,99 @@ def gen_refs(target, source, env, for_signature):
 # Language Model
 #
 
+def ibm_train_language_model(target, source, env, for_signature):
+    return ""
+
+def train_pronunciation_model(target, source, env):
+    """
+    g2p.py --train - --devel 5% --model test.model2 --ramp-up --write-model test.model3
+    """
+    train_fname = source[0].rstr()
+    dev_percent = source[1].read()
+    if len(source) == 3:
+        previous = source[2].rstr()
+        cmd = "${SEQUITUR_PATH}/bin/g2p.py --train - --devel %d%% --write-model %s --ramp-up --model %s" % (dev_percent, target[0].rstr(), previous)        
+    else:
+        cmd = "${SEQUITUR_PATH}/bin/g2p.py --train - --devel %d%% --write-model %s" % (dev_percent, target[0].rstr())
+    with open(train_fname) as ifd:
+        data = "\n".join([re.sub(r"^(\S+)\(\d+\) (\S+) \[ wb \] (.*) \[ wb \]$", r"\1 \2 \3", line.strip()) for line in ifd if "REJ" not in line and line[0] != "<" and "SIL" not in line])
+        #print data
+        out, err, success = run_command(env.subst(cmd), env={"PYTHONPATH" : env.subst("${SEQUITUR_PATH}/lib/python2.7/site-packages")}, data=data)
+        if not success:
+            return err
+        else:
+            return None
+
+def transcript_vocabulary(target, source, env):
+    """
+    Input: list of transcript files
+    Output: sorted vocabulary file
+    """
+    words = set()
+    for f in source:
+        with meta_open(f.rstr()) as ifd:
+            words = words.union(set(sum([[word.strip().lower() for word in line.split() if not word[0] == "<"] for line in ifd if not re.match(r"^\[\d+\.\d+\]$", line)], [])))
+    with meta_open(target[0].rstr(), "w") as ofd:
+        ofd.write("\n".join(sorted(words)))
+    return None
+
+def augment_language_model(target, source, env):
+    """
+    Input: Arpabo file, Vocabulary
+    Output: Arpabo file
+    """
+    arpabo_rx = re.compile(r"""
+(?P<preamble>.*
+BBOARD_BEGIN
+(?P<bboard>.*?)
+BBOARD_END
+\s+
+\\data\\
+.*
+)
+(?P<ngrams>
+\\1-grams:.*?
+)
+\\end\\
+\s*
+""", re.X | re.S | re.M)
+    ngram_rx = re.compile(r"""
+^\\(\d+)-grams:\n
+(.*?)\n
+\n
+""", re.X | re.S | re.M)
+    ngrams = {}
+    with meta_open(source[0].rstr()) as arpabo, meta_open(source[1].rstr()) as vocab:
+        words = [x.strip() for x in vocab]
+        arpabo_match = arpabo_rx.match(arpabo.read())
+        for m in ngram_rx.finditer(arpabo_match.group("ngrams")):
+            n = int(m.group(1))
+            ngrams[n] = {}
+            for line in m.group(2).strip().lower().split("\n"):
+                toks = line.split()
+                seq = tuple(toks[1:n + 1])
+                if len(toks) < n + 2:
+                    ngrams[n][seq] = (float(toks[0]), None)
+                else:
+                    ngrams[n][seq] = (float(toks[0]), float(toks[-1]))
+        avg_prob = sum([x[0] for x in ngrams[1].values()]) / len(ngrams[1])
+        new_words = [x for x in words if (x,) not in ngrams[1] if "_" not in x and re.match(r".*[a-z].*", x)]
+        print new_words
+        for word in new_words:
+            ngrams[1][(word.rstrip("-"),)] = (avg_prob, None)
+        with meta_open(target[0].rstr(), "w") as ofd:
+            ofd.write(arpabo_match.group("preamble"))
+            for n, grams in ngrams.iteritems():
+                ofd.write("\\%d-grams:\n" % n)
+                for gram, (prob, bow) in grams.iteritems():
+                    if bow:
+                        ofd.write("%f %s %f\n" % (prob, " ".join(gram), bow))
+                    else:
+                        ofd.write("%f %s\n" % (prob, " ".join(gram)))
+                ofd.write("\n")
+            ofd.write("\\end\\\n\n")
+    return None
+
 #
 # Generic Audio Model
 #
@@ -92,7 +200,12 @@ def gen_refs(target, source, env, for_signature):
 
 
 def TOOLS_ADD(env):
-    env.Append(BUILDERS = {"BaseDictionary" : Builder(generator=make_base_dict),
+    env.Append(BUILDERS = {"IBMTrainLanguageModel" : Builder(generator=ibm_train_language_model),
+                           "BaseDictionary" : Builder(generator=make_base_dict),
                            "CollectRawText" : Builder(generator=collect_raw_text),
+                           "Experiment" : Builder(action=experiment, emitter=experiment_emitter),
+                           "AugmentLanguageModel" : Builder(action=augment_language_model),
+                           "TranscriptVocabulary" : Builder(action=transcript_vocabulary),
+                           "TrainPronunciationModel" : Builder(action=train_pronunciation_model),
                            })
                

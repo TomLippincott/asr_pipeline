@@ -88,7 +88,7 @@ nodes = get_nodes()
 logging.info("Available nodes: %s", ", ".join(nodes))
 
 
-# input/dict.test input/vocab buildLM/lm.3gm.arpabo.gz param/dnet.bin.gz
+# input/dict.test input/vocab buildLM/lm.3gm.arpabo.gz
 #
 # clean -> constructSI -> dlatSI -> rsync -> dlatSA1 -> rsync -> constructSA -> dlatSA2 -> rsync
 #
@@ -118,14 +118,6 @@ for node in nodes:
     dlatsi_construct_job.submit(options.commit)
     dlatsi_construct_jobs.append(dlatsi_construct_job)
 
-# dlatsi_job = Job(name="dlatsi",
-#                  dependencies=dlatsi_construct_jobs,
-#                  resources={},
-#                  commands=["%s/VT-2-5-babel/tools/attila/attila test.py -w 0.060 -n %d -j ${PBS_TASKNUM}" % (options.asr_path, options.number),
-#                            "%s/VT-2-5-babel/tools/attila/attila consensus.py -n %d -j ${PBS_TASKNUM}" % (options.asr_path, options.number)],
-#                  path="%s/Tagalog/decode/dlatSI" % options.asr_path,
-#                  array=options.number)
-# dlatsi_job.submit(options.commit)
 
 logging.info("launching %d speaker-independent training jobs (dlatsi)", options.number)
 dlatsi_jobs = []
@@ -168,16 +160,6 @@ for i in range(options.number):
     dlatsa1_job.submit(options.commit)
     dlatsa1_jobs.append(dlatsa1_job)
 
-#     out, err, job_id = submit_job("dlatsa_1",
-#                                   ["%s/VT-2-5-babel/tools/attila/attila vtln.py -n %s -j %s" % (options.asr_path, options.number, i),
-#                                    "%s/VT-2-5-babel/tools/attila/attila cat.py -n %s -j %s" % (options.asr_path, options.number, i),
-#                                    "%s/VT-2-5-babel/tools/attila/attila fmllr.py -n %s -j %s" % (options.asr_path, options.number, i)],
-#                                   "%s/Tagalog/decode/dlatSA" % options.asr_path,
-#                                   ["-W depend=afterok:%s" % (":".join([str(x) for x in dlatsi_ids]))],
-#                                   default_skeleton,
-#                               )
-#     dlatsa_ids.append(job_id)
-
 
 logging.info("rsyncing results of dlatsa1")
 dlatsa1_rsync_jobs = []
@@ -202,14 +184,6 @@ for node in nodes:
                                path="%s/Tagalog/decode/dlatSA" % options.asr_path)
     dlatsa_construct_job.submit(options.commit)
     dlatsa_construct_jobs.append(dlatsa_construct_job)
-#     out, err, job_id = submit_job("dlatsa_construct",
-#                                   ["%s/VT-2-5-babel/tools/attila/attila construct.py" % options.asr_path],
-#                                   "%s/Tagalog/decode/dlatSA" % options.asr_path,
-#                                   ["-l nodes=%s" % node,
-#                                    "-W depend=afterok:%s" % (":".join([str(x) for x in dlatsa_ids]))],
-#                                   default_skeleton,
-#                                   )
-#     construct_ids.append(job_id)
 
 
 logging.info("launching %d speaker-adapted training jobs (dlatsa2)", options.number)
@@ -219,22 +193,12 @@ for i in range(options.number):
                       dependencies=dlatsa1_rsync_jobs,
                       resources={},
                       commands=["%s/VT-2-5-babel/tools/attila/attila test.py -w 0.060 -n %s -j %s" % (options.asr_path, options.number, i),
-                                "%s/VT-2-5-babel/tools/attila/attila test_cleanup.py -n %s -j %s" % (options.asr_path, options.number, i),
+                                #"%s/VT-2-5-babel/tools/attila/attila test_cleanup.py -n %s -j %s" % (options.asr_path, options.number, i),
                                 "%s/VT-2-5-babel/tools/attila/attila consensus.py -n %s -j %s" % (options.asr_path, options.number, i)],
                       path="%s/Tagalog/decode/dlatSA" % options.asr_path,
                       )
     dlatsa2_job.submit(options.commit)
     dlatsa2_jobs.append(dlatsa2_job)
-
-#     out, err, job_id = submit_job("dlatsa_2",
-#                                   ["%s/VT-2-5-babel/tools/attila/attila test.py -w 0.060 -n %s -j %s" % (options.asr_path, options.number, i),
-#                                    "%s/VT-2-5-babel/tools/attila/attila test_cleanup.py -n %s -j %s" % (options.asr_path, options.number, i),
-#                                    "%s/VT-2-5-babel/tools/attila/attila consensus.py -n %s -j %s" % (options.asr_path, options.number, i)],
-#                                   "%s/Tagalog/decode/dlatSA" % options.asr_path,
-#                                   ["-W depend=afterok:%s" % (":".join([str(x) for x in construct_ids]))],
-#                                   default_skeleton,
-#                               )
-#     dlatsa_ids.append(job_id)
 
 
 logging.info("rsyncing results of dlatsa2")
