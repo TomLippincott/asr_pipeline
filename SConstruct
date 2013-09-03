@@ -76,6 +76,7 @@ env['PRINT_CMD_LINE_FUNC'] = print_cmd_line
 #
 for name, experiment in env["EXPERIMENTS"].iteritems():
     dev_vocab = env.TranscriptVocabulary("work/dev_vocab.txt", ["buildLM/dev.txt"] + Glob("/mnt/asr/106-Delivery-Tagalog-v0.2g/conversational/dev/transcription/*"))
+    env.CreateASRDirectory(Dir(os.path.join("work", name)), Value(experiment))
     #env.AugmentLanguageModel("work/lm.gz", ["buildLM/lm.3gm.arpabo.gz", dev_vocab])
     #pronunciation_model = env.TrainPronunciationModel("work/pronunciation_model_1.txt", ["input/dict.train", Value(5)])
     #for i in range(2, 6):

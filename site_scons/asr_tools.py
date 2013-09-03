@@ -1,5 +1,6 @@
 from SCons.Builder import Builder
 from SCons.Action import Action
+from SCons.Subst import scons_subst
 import re
 from glob import glob
 from functools import partial
@@ -197,7 +198,45 @@ BBOARD_END
 # Context-Dependent Model
 #
 
+def create_asr_directory(target, source, env):
+    language_model, vocabulary, dictionary, database, gcfg_template, dlatsi_template, dlatsa_template = source[0:7]
+    gcfg, dlatsi, dlatsa = target
+    args = source[-1].read()
+    vals = {
+        "LANGUAGE_MODEL" : language_model,
+        "PCM_DIR" : args["DATA"],
+        "ROOT_DIR" : args["IBM_MODEL_ROOT"],
+        "VOCABULARY" : vocabulary,
+        "DICTIONARY" : dictionary,
+        "DATABASE" : database,
+        "GCFG_FILE" : gcfg,
+        "MAX_ERROR" : 15000,
+        "USE_DISPATCHER" : False,
+        }
+    for ifname, ofname in zip(source[4:], target):
+        with open(ifname.rstr()) as ifd, open(ofname.rstr(), "w") as ofd:
+            ofd.write(scons_subst(ifd.read(), env=env, lvars=vals))
+    return None
 
+def create_asr_directory_emitter(target, source, env):
+    args = source[0].read()
+    base = target[0].rstr()
+    new_targets = [
+        os.path.join(base, "input", "gcfg.py"),
+        os.path.join(base, "dlatSI", "cfg.py"),
+        os.path.join(base, "dlatSA", "cfg.py"),
+        ]
+    new_sources = [
+        args["LANGUAGE_MODEL"],
+        args["VOCABULARY"],
+        args["DICTIONARY"],
+        args["DATABASE"],
+        os.path.join("data", "gcfg.py.template"),
+        os.path.join("data", "dlatsi.cfg.py.template"),
+        os.path.join("data", "dlatsa.cfg.py.template"),
+        source[0],
+        ]
+    return new_targets, new_sources
 
 def TOOLS_ADD(env):
     env.Append(BUILDERS = {"IBMTrainLanguageModel" : Builder(generator=ibm_train_language_model),
@@ -207,5 +246,6 @@ def TOOLS_ADD(env):
                            "AugmentLanguageModel" : Builder(action=augment_language_model),
                            "TranscriptVocabulary" : Builder(action=transcript_vocabulary),
                            "TrainPronunciationModel" : Builder(action=train_pronunciation_model),
+                           "CreateASRDirectory" : Builder(action=create_asr_directory, emitter=create_asr_directory_emitter),
                            })
                
