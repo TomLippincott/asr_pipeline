@@ -7,6 +7,17 @@ import Data.Map (Map, fromList, toList)
 import Text.ParserCombinators.Parsec (parse, ParseError, GenParser, many, eof, noneOf, oneOf, char, skipMany, skipMany1, space, spaces, newline, endBy)
 import Data.List (intersperse)
 
+data Stage = SpeakerIndependent | SpeakerAdapted1 | SpeakerAdapted2 deriving (Eq)
+
+instance Ord Stage where
+  compare :: Stage -> Stage -> Ordering
+  compare SpeakerIndependent _ = LT
+  compare SpeakerAdapted2 _ = GT
+  compare SpeakerAdapted1 SpeakerAdapted2 = LT
+  compare _ _ = GT
+  
+
+
 {-
 data Host = Host {hostname :: String,
                   state :: String,
@@ -80,10 +91,12 @@ submitJob j = do
   (exit, stdout, stderr) <- readProcessWithExitCode "qsub" ["-V", "-h"] (show j)
   return $ Left $ stdout
 
+
+
 main = do
   let jobSpec = JobSpec "testjob" ["sleep 30", "exit 0"] (fromList [("hosts", "calculon-minor")]) [] "/mnt/asr"
-  jobId <- submitJob jobSpec
-  (Right hosts) <- qnodes
-  print $ map hostname hosts
+  --jobId <- submitJob jobSpec
+  --(Right hosts) <- qnodes
+  --print $ map hostname hosts
   print jobSpec
-  print jobId
+  --print jobId
