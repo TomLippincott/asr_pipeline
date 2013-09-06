@@ -62,7 +62,7 @@ env['PRINT_CMD_LINE_FUNC'] = print_cmd_line
 #
 # undefined = [x for x in vars.keys() if x not in env]
 # if len(undefined) != 0:
-#     print """
+#     print ""
 # One or more parameters (%s) are undefined.  Please edit custom.py appropriately.
 # To get started, 'cp custom.py.example custom.py'
 # """ % (",".join(undefined))
@@ -75,9 +75,21 @@ env['PRINT_CMD_LINE_FUNC'] = print_cmd_line
 # run all the experiments in EXPERIMENTS (defined in custom.py)
 #
 for name, experiment in env["EXPERIMENTS"].iteritems():
-    dev_vocab = env.TranscriptVocabulary("work/dev_vocab.txt", ["buildLM/dev.txt"] + Glob("/mnt/asr/106-Delivery-Tagalog-v0.2g/conversational/dev/transcription/*"))
-    env.CreateASRDirectory(Dir(os.path.join("work", name)), Value(experiment))
-    #env.AugmentLanguageModel("work/lm.gz", ["buildLM/lm.3gm.arpabo.gz", dev_vocab])
+    #dev_vocab = env.TranscriptVocabulary("work/dev_vocab.txt", ["buildLM/dev.txt"] + Glob("/mnt/asr/106-Delivery-Tagalog-v0.2g/conversational/dev/transcription/*"))
+    #new_vocab = env.MissingVocabulary("work/missing_vocab.txt", ["%s/buildLM/lm.3gm.arpabo.gz" % experiment["IBM_PATH"], "%s/input/dict.train" % experiment["IBM_PATH"]])
+    #midline_lm = env.AugmentLanguageModel(["work/new_dict.txt", "work/new_lm.gz"], [new_vocab, "%s/input/dict.test" % experiment["IBM_PATH"], "buildLM/lm.3gm.arpabo.gz"])
+    model1_50k_dict, model1_50k_lm, model1_50k_vocab = env.AugmentLanguageModel(["work/model1_50k_dict.txt", "work/model1_50k_lm.gz", "work/model1_50k_vocab.txt"], 
+                                                                                ["data/model1_50k.txt", "%s/input/dict.test" % experiment["IBM_PATH"], "buildLM/lm.3gm.arpabo.gz"])
+    continue
+    baseline = env.CreateASRDirectory(Dir(os.path.join("work", name)), Value({"LANGUAGE_MODEL" : os.path.join(experiment["IBM_PATH"], "buildLM", "lm.3gm.arpabo.gz"),
+                                                                              "VOCABULARY" : os.path.join(experiment["IBM_PATH"], "input", "vocab"),
+                                                                              "DICTIONARY" : os.path.join(experiment["IBM_PATH"], "input", "dict.test"),
+                                                                              "DATABASE" : os.path.join(experiment["IBM_PATH"], "segment", "db", experiment["DATABASE"]),
+                                                                              "DATA" : experiment["DATA_PATH"],
+                                                                              "IBM_PATH" : experiment["IBM_PATH"],
+                                                                              }))
+    pass
+
     #pronunciation_model = env.TrainPronunciationModel("work/pronunciation_model_1.txt", ["input/dict.train", Value(5)])
     #for i in range(2, 6):
     #    pronunciation_model = env.TrainPronunciationModel("work/pronunciation_model_%d.txt" % i, ["input/dict.train", Value(5), pronunciation_model])

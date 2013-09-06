@@ -1,0 +1,72 @@
+# -------------------------------------------------
+# Attila Speech Recognition Toolkit
+#
+# Module  : Global System Configuration
+# Author  : Hagen Soltau
+# Date    : 03/08/2004
+# $Id: gcfg.py,v 1.11 2011/04/13 13:49:01 hsoltau Exp $
+#
+# -------------------------------------------------
+
+from attila import *
+import dbase, misc, math
+import os.path
+
+# error handling
+misc.errorMax = ${MAX_ERROR}
+errorHandler.setVerbosity(errorHandler.INFO_LOG)
+
+# root directory
+# Modify this rootDir 
+rootDir = '${ROOT_DIR}'
+
+# dbase
+dbFile        = '${TRAINING_DATABASE.abspath}'
+db            = dbase.DB(dirFn=dbase.getFlatDir)
+useDispatcher = ${USE_DISPATCHER}
+
+# frontend
+samplingrate  = 8000
+featuretype   = 'plp'
+pcmDir        = '${PCM_DIR}'
+melFile       = os.path.join(rootDir, 'input/mel')
+
+# descriptors
+psFile        = os,path.join(rootDir, 'input/pnsp')
+pssFile       = os.path.join(rootDir, 'input/phonesset')
+tagsFile      = os.path.join(rootDir, 'input/tags')
+dictFile      = os.path.join(rootDir, 'input/dict.train')
+treeFile      = os.path.join(rootDir, 'desc/tree')
+topoFile      = os.path.join(rootDir, 'desc/topo')
+ttreeFile     = os.path.join(rootDir, 'desc/topotree')
+
+# transcripts
+txtDir        = os.path.join(rootDir, 'txt/train/')
+
+# list of context independent phones
+ciphoneL      = ['SIL', 'NS', 'VN', 'REJ']
+
+# list of silence phones (for VTLN)
+silphoneL     = ['SIL', 'NS', 'VN', 'REJ']
+
+# Default acoustic weight
+acweight = 0.053
+
+# HMM configuration
+HMM.silWord  = '~SIL'
+HMM.bosWord  = '<s>'
+HMM.eosWord  = '</s>'
+HMM.variants = True
+HMM.skipBnd  = False
+HMM.silProb  = 1.0
+
+# HMM context configuration : within-word
+HMM.leftContext       = 2
+HMM.rightContext      = 2
+
+# HMM context configuration : across-word
+HMM.leftXContext      = 2
+HMM.rightXContext     = 2
+
+# Virtual Word Boundary phone
+HMM.wordBoundaryPhone = '|'
