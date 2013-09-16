@@ -138,6 +138,7 @@ def missing_vocabulary(target, source, env):
                     new_dict.write("%s %s\n" % (word, pron))
     return None
 
+
 def augment_language_model(target, source, env):
     """
     Input: new words, old dictionary, old language model
@@ -156,13 +157,13 @@ def augment_language_model(target, source, env):
     meta_open(tlm, "w").write(meta_open(source[2].rstr()).read().replace(bad, "XQXQ"))
     
     out, err, success = run_command(["java", "-jar", "data/AddWord.jar", "-n", tnew, "-d", tdict, "-a", tlm, 
-                                     "-D", tnewdict, "-A", tnewlm, "-p", "-4.844"])
+                                     "-D", tnewdict, "-A", tnewlm, "-p", "-4.8"])
     with meta_open(target[0].rstr(), "w") as newdict_fd, meta_open(target[1].rstr(), "w") as newlm_fd, meta_open(target[2].rstr(), "w") as newvocab_fd:
-        newdict_fd.write("\n".join([" ".join([x[0].lower()] + x[1:]) for x in [l.split() for l in meta_open(tnewdict).read().replace("XQXQ", bad).split("\n")] if len(x) > 0]))
+        newdict_fd.write("\n".join(sorted([" ".join([x[0].lower()] + x[1:]) for x in [l.split() for l in meta_open(tnewdict).read().replace("XQXQ", bad).split("\n")] if len(x) > 0])))
         newdict_fd.close()
         newlm_fd.write(meta_open(tnewlm).read().replace("XQXQ", bad))
-        newvocab_fd.write("\n".join(["%s(%s) %s" % (w, n, w) for w, n in [re.match(r"^(\S+)\((\d+)\) .*", l).groups() for l in meta_open(target[0].rstr())]]))
-        #newvocab_fd.write(meta_open(
+        newvocab_fd.write("\n".join(sorted(["%s(%s) %s" % (w, n, w) for w, n in [re.match(r"^(\S+)\((\d+)\) .*", l).groups() for l in meta_open(target[0].rstr())]])))
+
     [os.remove(x) for x in [tnew, tdict, tlm, tnewdict, tnewlm]]
     if not success:
         return err
@@ -284,14 +285,13 @@ def create_asr_directory(target, source, env):
         "MAX_ERROR" : 15000,
         "USE_DISPATCHER" : False,
         }
-    for ifname, ofname in zip(source[4:], target):
+    for ifname, ofname in zip(source[4:-1], target):
         with open(ifname.rstr()) as ifd, open(ofname.rstr(), "w") as ofd:
             ofd.write(scons_subst(ifd.read(), env=env, lvars=vals))
-    for fname in ["consensus.py", "construct.py", "density.py", "test.pj", "test.py", "testserver.py"]:
-        pass
-        #shutil.copyfile(os.path.join(args["IBM_PATH"], "dlatSI", fname), os.path.join(target[1]))
-    for fname in ["cat.py", "consensus.py", "construct.py", "density.py", "fmllr.py", "test_cleanup.py", "test.pj", "test.py", "testserver.py", "vcfg.py", "vtln.py", "warp.lst"]:
-        pass
+    for ifname, ofname in zip(["consensus.py", "construct.py", "density.py", "test.pj", "test.py", "testserver.py"], target[3:9]):
+        shutil.copyfile(os.path.join(args["IBM_PATH"], "dlatSI", ifname), ofname.rstr())
+    for ifname, ofname in zip(["consensus.py", "construct.py", "density.py", "fmllr.py", "test_cleanup.py", "test.pj", "test.py", "testserver.py", "vcfg.py", "vtln.py"], target[9:19]):
+        shutil.copyfile(os.path.join(args["IBM_PATH"], "dlatSA", ifname), ofname.rstr())
     return None
 
 def create_asr_directory_emitter(target, source, env):
@@ -303,8 +303,8 @@ def create_asr_directory_emitter(target, source, env):
         os.path.join(base, "dlatSA", "cfg.py"),
         ] + \
         [os.path.join(base, "dlatSI", x) for x in ["consensus.py", "construct.py", "density.py", "test.pj", "test.py", "testserver.py"]] + \
-        [os.path.join(base, "dlatSA", x) for x in ["cat.py", "consensus.py", "construct.py", "density.py", "fmllr.py", "test_cleanup.py", "test.pj", 
-                                                   "test.py", "testserver.py", "vcfg.py", "vtln.py", "warp.lst"]]
+        [os.path.join(base, "dlatSA", x) for x in ["consensus.py", "construct.py", "density.py", "fmllr.py", "test_cleanup.py", "test.pj", 
+                                                   "test.py", "testserver.py", "vcfg.py", "vtln.py"]]
     new_sources = [
         args["LANGUAGE_MODEL"],
         args["VOCABULARY"],
@@ -323,7 +323,8 @@ def TOOLS_ADD(env):
                            "CollectRawText" : Builder(generator=collect_raw_text),
                            "Experiment" : Builder(action=experiment, emitter=experiment_emitter),
                            "MissingVocabulary" : Builder(action=missing_vocabulary),
-                           "AugmentLanguageModel" : Builder(action=augment_language_model),
+                           #"AugmentLanguageModel" : Builder(action=augment_language_model),
+                           "AugmentLanguageModel" : Builder(action="${ADD_WORDS} ${SOURCES[2]} ${SOURCES[0]} ${TARGETS[0]}"),
                            "AugmentLanguageModelFromBabel" : Builder(action=augment_language_model_from_babel),
                            "TranscriptVocabulary" : Builder(action=transcript_vocabulary),
                            "TrainPronunciationModel" : Builder(action=train_pronunciation_model),
