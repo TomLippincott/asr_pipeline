@@ -1,0 +1,76 @@
+# -------------------------------------------------
+# Attila Speech Recognition Toolkit
+#
+# Module  : Consensus hypotheses from lattices
+# Author  : George Saon
+# Date    : 01/30/2006
+# $Id: consensus.py,v 1.3 2011/04/12 14:35:38 hsoltau Exp $
+#
+# -------------------------------------------------
+
+import random, time
+
+import os,sys,user
+from optparse import OptionParser
+
+# ------------------------------------------
+# Attila modules
+# ------------------------------------------
+
+from attila import *
+import cfg,dispatcher,search,misc
+
+# ------------------------------------------
+# Arguments
+# ------------------------------------------
+
+parser = OptionParser()
+parser.add_option('-j',help='job identifier',dest='jid',default='0')
+parser.add_option('-n',help='number of jobs',dest='jnr',default='1')
+(options, args) = parser.parse_args()
+
+jid = int(options.jid)
+jnr = int(options.jnr)
+
+# ------------------------------------------
+# Configuration modifier
+# ------------------------------------------
+
+# no decoding, so no graph
+cfg.graph = ''
+
+# ------------------------------------------
+# Boot
+# ------------------------------------------
+
+# dbase
+db = cfg.db
+db.init(cfg.dbFile,'speaker',cfg.useDispatcher,jid,jnr,chunkSize=1)
+
+se = search.Decoder(acweight=cfg.acweight,genLat=True)
+se.initGraph(cfg,lmType=32,mmapFlag=True)
+
+# ------------------------------------------
+# Main loop
+# ------------------------------------------
+
+def process(spk):
+    misc.info('main','Consensus','spk=   '+spk)
+    f    = open(cfg.cctmDir+spk+'.ctm','w')
+    uttL = db.getUtts(spk)
+    for utt in uttL:
+        se.lat.read(cfg.latDir+utt+'.fsm.gz',db.getFrom(utt))
+        se.consensus()
+        key    = utt + ' ' + os.path.splitext(db.getFile(utt))[0]
+        txt    = se.getConsHyp().strip()
+        hyp    = se.getConsCTM(key,db.getFrom(utt))
+        print utt,'words=',txt
+        for c in hyp: f.write(c+'\n')
+        se.cons.write(cfg.consDir+utt+'.cons.gz',db.getFrom(utt))
+    f.close()
+
+misc.makeDir(cfg.cctmDir)
+misc.makeDir(cfg.consDir)
+
+for spk in db:
+    process(spk)

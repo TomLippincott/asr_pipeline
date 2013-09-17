@@ -16,7 +16,7 @@ execfile('${GCFG_FILE.abspath}')
 import frontend, dbase
 
 # dbase
-dbFile = os.path.join(rootDir, '${DATABASE.abspath}')
+dbFile = '${DATABASE.abspath}'
 db     = dbase.DB(dirFn=dbase.getFlatDir)
 
 # frontend
@@ -30,23 +30,23 @@ ictx              = 8
 octx              = 4
 
 # ML acoustic models
-paramDir  = rootDir + 'buildCD3/param/'
-ldaFile   = paramDir+'30.mat'
-treeFile  = paramDir+'tree'
-gsAFile   = paramDir+'30.gs'
-msAFile   = paramDir+'30.ms'
+paramDir  = os.path.join(rootDir, 'buildCD3/param/')
+ldaFile   = os.path.join(paramDir, '30.mat')
+treeFile  = os.path.join(paramDir, 'tree')
+gsAFile   = os.path.join(paramDir, '30.gs')
+msAFile   = os.path.join(paramDir, '30.ms')
 
 # fMMI acoustic models
-paramDir  = rootDir + 'buildBMMI.SI.2/ftrain/param/'
-trfsFile  = paramDir+'512.trfs'
-trFile    = paramDir+'4.tr'
-ctxFile   = paramDir+'4.ctx'
+paramDir  = os.path.join(rootDir, 'buildBMMI.SI.2/ftrain/param/')
+trfsFile  = os.path.join(paramDir, '512.trfs')
+trFile    = os.path.join(paramDir, '4.tr')
+ctxFile   = os.path.join(paramDir, '4.ctx')
 
 # bMMI acoustic models
-paramDir  = rootDir + 'buildBMMI.SI.2/mtrain/param/'
-gsFile    = paramDir+'4.gs'
-msFile    = paramDir+'4.ms'
-fsFile    = paramDir+'4.fs'
+paramDir  = os.path.join(rootDir, 'buildBMMI.SI.2/mtrain/param/')
+gsFile    = os.path.join(paramDir, '4.gs')
+msFile    = os.path.join(paramDir, '4.ms')
+fsFile    = os.path.join(paramDir, '4.fs')
 
 # decoding graph
 dictFile  = '${DICTIONARY.abspath}'

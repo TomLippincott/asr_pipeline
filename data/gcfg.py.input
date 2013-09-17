@@ -32,7 +32,7 @@ pcmDir        = '${PCM_DIR}'
 melFile       = os.path.join(rootDir, 'input/mel')
 
 # descriptors
-psFile        = os,path.join(rootDir, 'input/pnsp')
+psFile        = os.path.join(rootDir, 'input/pnsp')
 pssFile       = os.path.join(rootDir, 'input/phonesset')
 tagsFile      = os.path.join(rootDir, 'input/tags')
 dictFile      = os.path.join(rootDir, 'input/dict.train')

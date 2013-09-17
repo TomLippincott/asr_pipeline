@@ -1,0 +1,59 @@
+# -------------------------------------------------
+# Attila Speech Recognition Toolkit
+#
+# Module  : CD-VTL Estimation Configuration
+# Author  : Hagen Soltau
+# Date    : 03/08/2004
+# $Id: vcfg.py,v 1.6 2010/09/23 15:45:01 hsoltau Exp $
+#
+# -------------------------------------------------
+
+# global configuration
+execfile('../input/gcfg.py')
+
+import frontend,dbase
+import os.path
+
+# dbase
+dbFile = '${DATABASE.abspath}'
+db     = dbase.DB(dirFn=dbase.getFlatDir)
+
+# frontend
+fe = frontend.FeCombo(db,samplingrate,featuretype)
+fe.fmmi.depL      = [ fe.lda ]
+fe.end            = fe.fmmi
+fe.pcm.pcmDir     = pcmDir
+fe.norm.normMode  = 0
+fe.norm.normDir   = os.path.join(rootDir, 'dtestCD3/cms/')
+ictx              = 8
+octx              = 4
+
+# ML acoustic models
+paramDir  = os.path.join(rootDir, 'buildCD3/param/')
+ldaFile   = os.path.join(paramDir, '30.mat')
+treeFile  = os.path.join(paramDir, 'tree')
+gsAFile   = os.path.join(paramDir, '30.gs')
+msAFile   = os.path.join(paramDir, '30.ms')
+
+# fMMI acoustic models
+paramDir  = os.path.join(rootDir, 'buildBMMI.SI.2/ftrain/param/')
+trfsFile  = os.path.join(paramDir, '512.trfs')
+trFile    = os.path.join(paramDir, '4.tr')
+ctxFile   = os.path.join(paramDir, '4.ctx')
+
+# bMMI acoustic models
+paramDir  = os.path.join(rootDir, 'buildBMMI.SI.2/mtrain/param/')
+gsFile    = os.path.join(paramDir, '4.gs')
+msFile    = os.path.join(paramDir, '4.ms')
+fsFile    = os.path.join(paramDir, '4.fs')
+
+# VTLN
+vtlgsFile   = os.path.join(rootDir, 'buildVTL/param/4.vgs')
+vtlmsFile   = os.path.join(rootDir, 'buildVTL/param/4.vms')
+vtltreeFile = os.path.join(rootDir, 'buildCD2/param/tree')
+normDir     = 'cms/'
+vtlnMinCount = 100.0
+
+# Transcripts
+txtDir      = '../dlatSI/cons/'
+dictFile  = '${DICTIONARY.abspath}'

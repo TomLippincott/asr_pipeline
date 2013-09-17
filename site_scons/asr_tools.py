@@ -271,12 +271,12 @@ BBOARD_END
 #
 
 def create_asr_directory(target, source, env):
-    language_model, vocabulary, dictionary, database, gcfg_template, dlatsi_template, dlatsa_template = source[0:7]
-    gcfg, dlatsi, dlatsa = target[0:3]
-    args = source[-1].read()
+    language_model, vocabulary, dictionary, database, args = source[-5:]
+    gcfg = target[0]
+    args = args.read()
     vals = {
         "LANGUAGE_MODEL" : language_model,
-        "PCM_DIR" : args["DATA"],
+        "PCM_DIR" : args["PCM_DIR"],
         "ROOT_DIR" : args["IBM_PATH"],
         "VOCABULARY" : vocabulary,
         "DICTIONARY" : dictionary,
@@ -285,36 +285,25 @@ def create_asr_directory(target, source, env):
         "MAX_ERROR" : 15000,
         "USE_DISPATCHER" : False,
         }
-    for ifname, ofname in zip(source[4:-1], target):
-        with open(ifname.rstr()) as ifd, open(ofname.rstr(), "w") as ofd:
+    for template, final in zip(source, target):
+        with open(template.rstr()) as ifd, open(final.rstr(), "w") as ofd:
             ofd.write(scons_subst(ifd.read(), env=env, lvars=vals))
-    for ifname, ofname in zip(["consensus.py", "construct.py", "density.py", "test.pj", "test.py", "testserver.py"], target[3:9]):
-        shutil.copyfile(os.path.join(args["IBM_PATH"], "dlatSI", ifname), ofname.rstr())
-    for ifname, ofname in zip(["consensus.py", "construct.py", "density.py", "fmllr.py", "test_cleanup.py", "test.pj", "test.py", "testserver.py", "vcfg.py", "vtln.py"], target[9:19]):
-        shutil.copyfile(os.path.join(args["IBM_PATH"], "dlatSA", ifname), ofname.rstr())
     return None
 
 def create_asr_directory_emitter(target, source, env):
-    args = source[0].read()
+    language_model, vocabulary, dictionary, database, data_path, ibm_path = source[0:6]
+    if len(source) == 7:
+        args = source[-1].read()
+    else:
+        args = {}
+    args["PCM_DIR"] = args.get("PCM_DIR", data_path.rstr())
+    args["IBM_PATH"] = args.get("IBM_PATH", ibm_path.rstr())
     base = target[0].rstr()
-    new_targets = [
-        os.path.join(base, "input", "gcfg.py"),
-        os.path.join(base, "dlatSI", "cfg.py"),
-        os.path.join(base, "dlatSA", "cfg.py"),
-        ] + \
-        [os.path.join(base, "dlatSI", x) for x in ["consensus.py", "construct.py", "density.py", "test.pj", "test.py", "testserver.py"]] + \
-        [os.path.join(base, "dlatSA", x) for x in ["consensus.py", "construct.py", "density.py", "fmllr.py", "test_cleanup.py", "test.pj", 
-                                                   "test.py", "testserver.py", "vcfg.py", "vtln.py"]]
-    new_sources = [
-        args["LANGUAGE_MODEL"],
-        args["VOCABULARY"],
-        args["DICTIONARY"],
-        args["DATABASE"],
-        os.path.join("data", "gcfg.py.template"),
-        os.path.join("data", "dlatsi.cfg.py.template"),
-        os.path.join("data", "dlatsa.cfg.py.template"),
-        source[0],
-        ]
+    dlatsi = ["cfg.py", "construct.py", "test.py", "consensus.py"]
+    dlatsa = ["cfg.py", "construct.py", "vtln.py", "fmllr.py", "test.py", "test_cleanup.py", "consensus.py", "vcfg.py"]
+
+    new_sources = ["data/gcfg.py.input"] + ["data/%s.dlatSI" % x for x in dlatsi] + ["data/%s.dlatSA" % x for x in dlatsa] + ["data/gcfg.py.input"] + source[0:4] + [env.Value(args)]
+    new_targets = [os.path.join(base, "input", "gcfg.py")] + [os.path.join(base, "dlatSI", x) for x in dlatsi] + [os.path.join(base, "dlatSA", x) for x in dlatsa]
     return new_targets, new_sources
 
 def TOOLS_ADD(env):

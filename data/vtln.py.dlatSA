@@ -1,0 +1,239 @@
+# -------------------------------------------------
+# Attila Speech Recognition Toolkit
+#
+# Module  : VTLN Estimation
+# Author  : Hagen Soltau
+# Date    : 11/03/2004
+# $Id: vtln.py,v 1.7 2011/04/11 18:11:08 hsoltau Exp $
+#
+# -------------------------------------------------
+
+import random, time
+# time.sleep(random.randint(0,120))
+
+import os, user, sys
+from optparse import OptionParser
+
+# ------------------------------------------
+# Attila modules
+# ------------------------------------------
+
+from attila import *
+import vcfg as cfg
+import aio, train, misc, dispatcher
+
+# ------------------------------------------
+# Arguments
+# ------------------------------------------
+
+parser = OptionParser()
+parser.add_option('-j',help='job identifier',dest='jid',default='0')
+parser.add_option('-n',help='number of jobs',dest='jnr',default='1')
+(options, args) = parser.parse_args()
+
+jid = int(options.jid)
+jnr = int(options.jnr)
+
+# ------------------------------------------
+# Configuration Modifier
+# ------------------------------------------
+
+cfg.warpFile = 'warp.lst.' + str(jid)
+
+# ------------------------------------------
+# Attila boot
+# ------------------------------------------
+
+# dbase
+db = cfg.db
+db.init(cfg.dbFile,'speaker',cfg.useDispatcher,jid,jnr,chunkSize=1)
+
+# frontend
+fe = cfg.fe
+fe.mel.readFilter(cfg.melFile)
+fe.lda.readLDA(cfg.ldaFile)
+fe.fmmi.init(cfg.trFile, cfg.trfsFile, cfg.ctxFile, cfg.ictx, cfg.octx)
+    
+# Transcripts
+tx    = aio.ConfRef()
+tx.db = db
+tx.txtDir = cfg.txtDir
+
+# Trainer
+tr = train.Trainer()
+tr.initAM  (cfg)
+tr.initDict(cfg)
+tr.initTree(cfg)
+tr.initHMM ()
+tr.db = db
+tr.gs.setFeat(fe.end.feat)
+
+# get a set of states that correspond to phones we skip in VTLN
+idx  = IVector()
+silD = set()
+for topo in tr.tset:
+    if topo.name not in cfg.silphoneL:
+        continue
+    for state in topo:
+        tr.tree.getModelSet(idx,state.root)
+        for i in range(idx.dimN):
+            silD.add(idx[i])
+
+# Voicing Model
+cfg.gsFile   = cfg.vtlgsFile
+cfg.msFile   = cfg.vtlmsFile
+cfg.treeFile = cfg.vtltreeFile
+warpLst      = range(len(fe.mel.melBank))
+vfe          = Feature()
+vtr = train.Trainer()
+vtr.initAM  (cfg)
+vtr.shareDict(tr)
+vtr.initTree(cfg)
+vtr.initHMM ()
+vtr.gs.setFeat(vfe)
+
+vdir = os.path.split(cfg.warpFile)[0]
+if vdir and not os.path.isdir(vdir):
+    try:
+        os.makedirs(vdir)
+    except:
+        if not os.path.isdir(vdir):
+            raise
+        
+# ------------------------------------------
+# getNorm : speech based cms
+# ------------------------------------------
+
+# global arrays
+cmsA   = {}
+scA    = {}
+plpA   = {}
+scoreA = {}
+
+def getNorm(spk):
+    global cmsA,scA,plpA,scoreA
+    wght   = FVector()
+    uttL   = db.getUtts(spk)
+    plpA   = {}
+    cmsA   = {}
+    scA    = {}
+    scoreA = {}
+    for warp in warpLst:
+        cmsA[warp]   = FMatrix()
+        scA[warp]    = Scatter()
+        scoreA[warp] = 0
+    for utt in uttL :
+        for warp in warpLst:
+            fe.mel.utt = 'unknown'
+            fe.plp.utt = 'unknown'            
+            fe.mel.warp = warp
+            try:
+                fe.plp.eval(utt)
+            except:
+                misc.error('getNorm','frontend error','%s warp= %d' % (utt, warp))
+                continue
+            plpA[utt,warp] = Feature()
+            plpA[utt,warp].copy(fe.plp.feat)
+            plpA[utt,warp].mean(cmsA[warp])
+           
+# ------------------------------------------
+# getScore
+# ------------------------------------------
+
+def getScore(spk):
+    global cmsA,scA,plpA,scoreA
+    uttL = db.getUtts(spk)
+    wght = FVector()    
+    for utt  in uttL :
+        try:
+            ref = tx.get(utt)               
+            fe.plp.eval(utt)
+            vtr.buildHMM(ref)
+        except:
+            misc.error('getScore','accumulation error',utt)            
+            continue
+        path = tr.pbox[utt]
+        if len(path) == 0 :
+            continue
+        path.align(vtr.hmm.sg)
+        frameN = len(path)
+        wght.resize(frameN)
+        wght.setConst(1.0)
+        for frameX in range(frameN):
+            if path[frameX][0].obsX in silD:
+                wght[frameX] = 0.0
+        for warp in warpLst:
+            vfe.norm(plpA[utt,warp],cmsA[warp],CVN_NORM)
+            scA[warp].accu(vfe,wght)
+            path.update(vtr.sc)
+            for frameX in range(frameN):
+                if path[frameX][0].obsX in silD:
+                    continue
+                scoreA[warp] += path[frameX][0].score
+                if frameX > 0:
+                    scoreA[warp] -= path[frameX-1][0].score
+
+# ------------------------------------------
+# findWarp
+# ------------------------------------------
+
+def findWarp(spk):
+    global cmsA,scA,plpA,scoreA
+    bestS = 1e+20
+    bestW = 10
+    for warp in warpLst:
+        if scA[warp].cnt < cfg.vtlnMinCount:
+            misc.warn('findWarp','insufficient counts, backing' \
+                      ' off to no warping ','spk= %s'%spk)
+            break
+        l = scoreA[warp] / scA[warp].cnt
+        s = l-0.5*tr.sc.scale*scA[warp].logDet()
+        if s < bestS:
+            bestS = s
+            bestW = warp
+    if bestS < 0:
+        misc.warn('findWarp','best Warp','spk= %s warp= %d score= %2.2f (will reset)'%(spk,bestW,bestS))
+        bestW = 10
+    misc.info('findWarp','best Warp','spk= %s warp= %d score= %2.2f'%(spk,bestW,bestS))
+    return bestW
+ 
+# ------------------------------------------
+# VTLN Estimation
+# ------------------------------------------
+
+def process(spk,vtlnFile):
+    uttL = db.getUtts(spk)
+    tr.pbox.clear()
+    # viterbi
+    fe.mel.warp = fe.mel.nullWarp
+    for utt in uttL:
+        try:
+            ref  = tx.get(utt)
+            path = tr.mkPath(utt)
+            fe.end.eval(utt)
+            tr.buildHMM(ref)
+            tr.viterbi()
+        except:
+            misc.error('main','accumulation error',utt)            
+            continue
+    # estimate warp
+    getNorm(spk)
+    getScore(spk)
+    warp = findWarp(spk)
+    # write cms
+    dir = db.getDir(spk,root=cfg.normDir,createDir=True)
+    cmsA[warp].write(dir+spk+'.mat')
+    # write vtln
+    print >>vtlnFile,spk,warp
+    return
+
+# ------------------------------------------
+# Main loop
+# ------------------------------------------
+        
+vtlnFile = open(cfg.warpFile,'w')
+
+for spk in db:
+    process(spk,vtlnFile)
+
+vtlnFile.close()

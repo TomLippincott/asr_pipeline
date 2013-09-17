@@ -1,0 +1,22 @@
+# -------------------------------------------------
+# Attila Speech Recognition Toolkit
+#
+# Module  : Dynamic Decoding
+# Author  : Hagen Soltau
+# Date    : 09/26/2007
+# $Id: test.py,v 1.4 2011/04/12 14:35:38 hsoltau Exp $
+#
+# -------------------------------------------------
+
+import random, time
+time.sleep(random.randint(0,120))
+
+import os
+import cfg
+
+tmpLocalDir="/tmp/attila"
+
+# clean up temporary file(s)
+tmpFile=os.path.join(tmpLocalDir,os.path.split(cfg.lm)[1]);
+os.remove(tmpFile);
+os.rmdir(tmpLocalDir);

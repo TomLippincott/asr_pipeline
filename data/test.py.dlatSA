@@ -1,0 +1,156 @@
+# -------------------------------------------------
+# Attila Speech Recognition Toolkit
+#
+# Module  : Dynamic Decoding
+# Author  : Hagen Soltau
+# Date    : 09/26/2007
+# $Id: test.py,v 1.4 2011/04/12 14:35:38 hsoltau Exp $
+#
+# -------------------------------------------------
+
+import random, time
+#time.sleep(random.randint(0,120))
+
+import os,sys,user
+from optparse import OptionParser
+
+# ------------------------------------------
+# Attila modules
+# ------------------------------------------
+
+from attila import *
+import cfg,aio,train,dsearch,misc,dispatcher
+
+# ------------------------------------------
+# Arguments
+# ------------------------------------------
+
+parser = OptionParser()
+parser.add_option('-j',help='job identifier',dest='jid',default='0')
+parser.add_option('-n',help='number of jobs',dest='jnr',default='1')
+parser.add_option('-w',help='acweight',dest='acwt',default='0.053')
+(options, args) = parser.parse_args()
+
+jid = int(options.jid)
+jnr = int(options.jnr)
+
+# ------------------------------------------
+# Configuration modifier
+# ------------------------------------------
+
+cfg.acweight = float(options.acwt)
+
+# ------------------------------------------
+# Boot
+# ------------------------------------------
+
+# create local temporary directory
+tmpLocalDir='/tmp/attila';
+try:
+    os.mkdir(tmpLocalDir);
+except(OSError):
+    misc.info('main', 'tmp-setup', 'tmpLocalDir=%s already exists.' %(tmpLocalDir));
+
+# dbase
+db = cfg.db
+db.init(cfg.dbFile,'speaker',cfg.useDispatcher,jid,jnr,chunkSize=1)
+
+# frontend
+fe = cfg.fe
+fe.mel.readFilter(cfg.melFile)
+fe.mel.readWarp(cfg.warpFile)
+fe.lda.readLDA(cfg.ldaFile)
+fe.fmmi.init(cfg.trFile, cfg.trfsFile, cfg.ctxFile, cfg.ictx, cfg.octx)
+
+# Transcripts
+tx        = aio.ConfRef()
+tx.db     = db
+tx.txtDir = cfg.txtDir
+
+# Trainer
+tr = train.Trainer()
+tr.initAM  (cfg)
+tr.initDict(cfg)
+tr.initTree(cfg)
+tr.initHMM ()
+tr.db = db
+tr.gs.setFeat(fe.end.feat)
+
+# Regression Tree
+rtree = RTree(tr.ms,tr.sc)
+for gaussX in range(tr.gs.size()):
+    gauss = tr.gs[gaussX]
+    for refX in range(gauss.refN):
+        rtree.addUnit(gauss,refX)
+rtree.cluster(cfg.depthN)
+rtree.store()
+
+# Dynamic Decoder
+se = dsearch.Decoder(speed=12,scale=cfg.acweight,lmType=32,genLat=True)
+se.gs = tr.gs
+se.ms = tr.ms
+se.sc.ms = tr.ms
+se.initSC(cfg,selectMaxL=cfg.selectMaxL)
+se.initGraph(cfg,mmapFlag=True,localDir=tmpLocalDir)
+se.gs.setFeat(fe.end.feat)
+
+se.latBeam  = 2.0
+se.linkMax  = 700
+rescoreBeam = 2.0
+
+# ------------------------------------------
+# Adaptation
+# ------------------------------------------
+
+def adapt(spk):    
+    uttL = db.getUtts(spk)
+    tr.pbox.clear()
+    rtree.clear()
+    rtree.restore()
+    tr.sc.topN = 1
+    for utt in uttL :
+        try:
+            fe.end.eval(utt)
+            ref = tx.get(utt)
+            tr.buildHMM(ref)
+            tr.viterbi(tryN=1)
+            rtree.accu(tr.path)
+        except:
+            misc.error('adapt','accumulation error',utt)
+    rtree.estimate(cfg.minCount)
+    rtree.adapt()
+    tr.sc.topN = 0
+    return
+
+# ------------------------------------------
+# Main loop
+# ------------------------------------------
+
+def process(spk):
+    misc.info('main','decoding','spk=   '+spk)
+    f    = open(cfg.ctmDir+spk+'.ctm','w')
+    uttL = db.getUtts(spk)
+    adapt(spk)
+    for utt in uttL:
+        fe.end.eval(utt)
+        se.search()
+	se.rescore(rescoreBeam)
+        key    = utt + ' ' + os.path.splitext(db.getFile(utt))[0]
+        txt    = se.getHyp().strip()
+        hyp    = se.getCTM(key,db.getFrom(utt))
+        tscore = se.getScore()
+        se.lat.write(cfg.latDir+utt+'.fsm.gz',db.getFrom(utt))
+        print utt,'score= %.5f frameN= %d'%(tscore,se.dnet.state.frameN)
+        print utt,'words=',txt
+        for c in hyp: print >>f,c
+        f.flush()
+        sys.stdout.flush()
+    f.close()
+    return
+
+misc.makeDir(cfg.ctmDir)
+misc.makeDir(cfg.latDir)
+
+for spk in db:
+    process(spk)
+

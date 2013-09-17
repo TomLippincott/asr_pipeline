@@ -1,0 +1,131 @@
+# -------------------------------------------------
+# Attila Speech Recognition Toolkit
+#
+# Module  : FMLLR Estimation
+# Author  : Hagen Soltau
+# Date    : 03/08/2004
+# $Id: fmllr.py,v 1.9 2011/04/11 18:11:08 hsoltau Exp $
+#
+# -------------------------------------------------
+
+import random, time
+#time.sleep(random.randint(0,120))
+
+import user, sys
+from optparse import OptionParser
+
+# ------------------------------------------
+# Attila modules
+# ------------------------------------------
+
+from attila import *
+import cfg, aio, train, misc, dispatcher
+
+# ------------------------------------------
+# Arguments
+# ------------------------------------------
+
+parser = OptionParser()
+parser.add_option('-j',help='job identifier',dest='jid',default='0')
+parser.add_option('-n',help='number of jobs',dest='jnr',default='1')
+(options, args) = parser.parse_args()
+
+jid = int(options.jid)
+jnr = int(options.jnr)
+
+# ------------------------------------------
+# Configuration modifier
+# ------------------------------------------
+
+cfg.gsFile = cfg.gsAFile
+cfg.msFile = cfg.msAFile
+
+# ------------------------------------------
+# Attila boot
+# ------------------------------------------
+
+# dbase
+db = cfg.db
+db.init(cfg.dbFile,'speaker',cfg.useDispatcher,jid,jnr,chunkSize=1)
+
+# frontend
+fe = cfg.fe
+fe.end = fe.fmllr
+fe.mel.readFilter(cfg.melFile)
+fe.mel.readWarp(cfg.warpFile + ".%s" % options.jid)
+fe.lda.readLDA(cfg.ldaFile)
+
+# Transcripts
+tx        = aio.ConfRef()
+tx.db     = db
+tx.txtDir = cfg.txtDir
+
+# Trainer
+tr = train.Trainer()
+tr.initAM  (cfg)
+tr.initDict(cfg)
+tr.initTree(cfg)
+tr.initHMM ()
+tr.db = db
+tr.gs.setFeat(fe.lda.feat)
+
+# FMLLR
+fmllr = FMLLR(tr.ms,tr.sc)
+fmllr.idxA.setConst(1)
+fmllr.feat = fe.lda.feat
+tr.sc.topN = 1
+
+# ------------------------------------------
+# Main loop
+# ------------------------------------------
+
+def process(spk):
+    fdir = db.getDir(spk,root=fe.fmllr.fmllrDir,createDir=True)
+    uttL = db.getUtts(spk)
+    tr.pbox.clear()
+    fmllr.reset()
+    fmllr.clear()
+    # accumulate fmllr statistics
+    for utt in uttL :
+        try:
+            ref = tx.get(utt)
+            fe.lda.eval(utt)
+            tr.buildHMM(ref)
+            tr.viterbi(tryN=1)
+            fmllr.accu(tr.path)
+        except:
+            misc.error('Main','Accumulation error',utt)
+    # estimate fmllr
+    fmllr.estimate(50,cfg.minCount)
+    misc.info('main','fmllr estimated','spk= %s cnt= %d det= %f' % (spk,fmllr.beta,fmllr.det))
+    det = abs(fmllr.det)
+    if (det < 0.1 or det > 1000):
+        misc.warn('main','fmllr rejected','spk= %s cnt= %d det= %f' % (spk,fmllr.beta,fmllr.det))
+        fmllr.reset()
+    fmllr.t.write(fdir+spk+'.mat')
+    # accumulate fmllr statistics
+    fmllr.clear()
+    for utt in uttL :
+        try:
+            ref = tx.get(utt)
+            fe.end.eval(utt)
+            tr.buildHMM(ref)
+            tr.viterbi(tryN=1)
+            fmllr.accu(tr.path)
+        except:
+            misc.error('Main','Accumulation error',utt)
+    # estimate fmllr
+    fmllr.reset()
+    fmllr.estimate(50,cfg.minCount)
+    misc.info('main','fmllr estimated','spk= %s cnt= %d det= %f' % (spk,fmllr.beta,fmllr.det))
+    det = abs(fmllr.det)
+    if (det < 0.1 or det > 1000):
+        misc.warn('main','fmllr rejected','spk= %s cnt= %d det= %f' % (spk,fmllr.beta,fmllr.det))
+        fmllr.reset()
+    # write fmllr
+    fdir = db.getDir(spk,root=fe.fmllr.fmllrDir,createDir=True)
+    fmllr.t.write(fdir+spk+'.mat')
+    return
+
+for spk in db:
+    process(spk)
