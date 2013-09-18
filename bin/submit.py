@@ -12,7 +12,8 @@ parser.add_argument("-c", "--commit", dest="commit", default=False, action="stor
 parser.add_argument("-a", "--attila_path", dest="attila_path", default="/local/tml2115/asr/VT-2-5-babel")
 parser.add_argument("-l", "--language_path", dest="language_path", default="/local/tml2115/asr/Tagalog")
 parser.add_argument("-H", "--hold", dest="hold", default=False, action="store_true")
-parser.add_argument("-s", "--start", choices=["dlatsi", "dlatsa1", "dlatsa2"], default="dlatsi")
+parser.add_argument("-S", "--start", choices=["dlatsi", "dlatsa1", "dlatsa2"], default="dlatsi")
+parser.add_argument("-E", "--end", choices=["dlatsi", "dlatsa1", "dlatsa2"], default="dlatsi")
 parser.add_argument("-e", "--stderr", dest="error", default=None)
 parser.add_argument("-o", "--stdout", dest="output", default=None)
 options = parser.parse_args()
@@ -160,7 +161,7 @@ if options.start == "dlatsi":
 if options.start == "dlatsa1":
     dlatsi_rsync_jobs = []
 
-if options.start in ["dlatsi", "dlatsa1"]:
+if options.start in ["dlatsi", "dlatsa1"] and options.end != "dlatsi":
 
     logging.info("launching %d speaker-adapted training jobs (dlatsa1)", options.number)
     dlatsa1_jobs = []
@@ -193,7 +194,7 @@ if options.start in ["dlatsi", "dlatsa1"]:
 if options.start == "dlatsa2":
     dlatsa1_rsync_jobs = []
 
-if options.start in ["dlatsi", "dlatsa1", "dlatsa2"]:
+if options.start in ["dlatsi", "dlatsa1", "dlatsa2"] and options.end not in ["dlatsi", "dlatsa1"]:
 
     logging.info("launching speaker-adapted construction jobs, one per node")
     dlatsa_construct_jobs = []
