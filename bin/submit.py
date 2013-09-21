@@ -4,23 +4,33 @@ import re
 import sys
 import random
 import logging
+import os.path
 
+class PathAction(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string):
+        apath = os.path.abspath(values)
+        if not os.path.exists(apath):
+            raise Exception("%s does not exist!" % apath)
+        setattr(namespace, self.dest, apath)
 
 parser = argparse.ArgumentParser()
+parser.add_argument("-A", "--attila_path", dest="attila_path", action=PathAction)
+parser.add_argument("-C", "--config_path", dest="config_path", action=PathAction)
+parser.add_argument("-O", "--output_path", dest="output_path", action=PathAction)
+parser.add_argument("-e", "--stderr", dest="stderr", action=PathAction)
+parser.add_argument("-o", "--stdout", dest="stdout", action=PathAction)
 parser.add_argument("-n", "--number", dest="number", type=int, default=10)
 parser.add_argument("-c", "--commit", dest="commit", default=False, action="store_true")
-parser.add_argument("-a", "--attila_path", dest="attila_path", default="/local/tml2115/asr/VT-2-5-babel")
-parser.add_argument("-l", "--language_path", dest="language_path", default="/local/tml2115/asr/Tagalog")
 parser.add_argument("-H", "--hold", dest="hold", default=False, action="store_true")
 parser.add_argument("-S", "--start", choices=["dlatsi", "dlatsa1", "dlatsa2"], default="dlatsi")
-parser.add_argument("-E", "--end", choices=["dlatsi", "dlatsa1", "dlatsa2"], default="dlatsi")
-parser.add_argument("-e", "--stderr", dest="error", default=None)
-parser.add_argument("-o", "--stdout", dest="output", default=None)
+parser.add_argument("-E", "--end", choices=["dlatsi", "dlatsa1", "dlatsa2"], default="dlatsa2")
+parser.add_argument("-D", "--debug", dest="debug", default=False, action="store_true")
 options = parser.parse_args()
 
-
-logging.basicConfig(format='%(asctime)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S', level=logging.INFO)
-
+if options.debug:    
+    logging.basicConfig(format='%(asctime)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S', level=logging.DEBUG)
+else:
+    logging.basicConfig(format='%(asctime)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S', level=logging.INFO)
 
 default_skeleton = """
 #PBS -N %(NAME)s
@@ -34,7 +44,7 @@ exit 0
 """
 
 class Job():
-    def __init__(self, name="UNNAMED", resources={}, dependencies=[], commands=[], path="", array=0, output_path=None, error_path=None):
+    def __init__(self, name="UNNAMED", resources={}, dependencies=[], commands=[], path="", array=0, stdout_path=None, stderr_path=None):
         self.name = name
         self.resources = resources
         self.dependencies = dependencies
@@ -44,15 +54,15 @@ class Job():
         self.resources["cput"] = "20:30:00"
         self.resources["walltime"] = "20:30:00"
         self.commands.append("exit 0")
-        self.output_path = output_path
-        self.error_path = error_path
+        self.stdout_path = stdout_path
+        self.stderr_path = stderr_path
 
     def __str__(self):
         lines = ["#PBS -N %s" % self.name] + ["#PBS -l %s=%s" % (k, v) for k, v in self.resources.iteritems()]
-        if self.output_path:
-            lines.append("#PBS -o %s" % self.output_path)
-        if self.error_path:
-            lines.append("#PBS -e %s" % self.error_path)
+        if self.stdout_path:
+            lines.append("#PBS -o %s" % self.stdout_path)
+        if self.stderr_path:
+            lines.append("#PBS -e %s" % self.stderr_path)
         if self.dependencies:
             arrays = [x.job_id for x in self.dependencies if x.array > 0]
             nonarrays = [x.job_id for x in self.dependencies if x.array == 0]
@@ -90,22 +100,24 @@ class Job():
             logging.debug("Would submit the following job specification via \"%s\":\n%s" % (" ".join(cmd), self))
             self.job_id = random.randint(1, 10000)
             
-def get_nodes():
-    out, err = subprocess.Popen(["qnodes"], stdout=subprocess.PIPE).communicate()
-    return [x.strip() for x in out.split("\n") if re.match(r"^\S+.*$", x)]
+def get_nodes(commit):
+    if options.commit:
+        out, err = subprocess.Popen(["qnodes"], stdout=subprocess.PIPE).communicate()
+        return [x.strip() for x in out.split("\n") if re.match(r"^\S+.*$", x)]
+    else:
+        return ["dummy%d" % x for x in range(1, 5)]
 
-
-nodes = get_nodes()
+nodes = get_nodes(options.commit)
 logging.info("Available nodes: %s", ", ".join(nodes))
 
-
+#sys.exit()
 # input/dict.test input/vocab buildLM/lm.3gm.arpabo.gz
 #
 # clean -> [constructSI -> dlatSI -> rsync] -> [dlatSA1 -> rsync] -> [constructSA -> dlatSA2 -> rsync]
 #
 # dlatsa - ctm lat cctm cons (refers to dlatsi-cons) (maybe makes cms fmllr)
-dlatsi_locs = ["lat", "ctm", "cctm", "cons"]
-dlatsa_locs = ["lat", "ctm", "cctm", "cons"]
+#dlatsi_locs = ["lat", "ctm", "cctm", "cons"]
+#dlatsa_locs = ["lat", "ctm", "cctm", "cons"]
 
 
 if options.start == "dlatsi":
@@ -116,18 +128,21 @@ if options.start == "dlatsi":
         cleanup_job = Job(name="cleanup",
                           resources={"nodes" : node},
                           dependencies=[],
-                          commands=["rm -rf %s" % (" ".join(["%s/decode/dlatSI/%s" % (options.language_path, x) for x in ["lat", "ctm", "cctm", "cons", "param"]])),
-                                    "rm -rf %s" % (" ".join(["%s/decode/dlatSA/%s" % (options.language_path, x) for x in ["lat", "ctm", "cctm", "cons", "param"]])),
-                                    "mkdir %s" % (" ".join(["%s/decode/dlatSI/%s" % (options.language_path, x) for x in ["lat", "ctm", "cctm", "cons", "param"]])),
-                                    "mkdir %s" % (" ".join(["%s/decode/dlatSA/%s" % (options.language_path, x) for x in ["lat", "ctm", "cctm", "cons", "param"]]))],
-                          path="%s/decode/dlatSI" % options.language_path)
+                          commands=["rm -rf %s/*" % options.output_path],
+                          stdout_path=options.stdout,
+                          stderr_path=options.stderr)
+
+                
         cleanup_job.submit(options.commit)
 
         dlatsi_construct_job = Job(name="dlatsi_construct",
                                    resources={"nodes" : node},
                                    dependencies=[cleanup_job],
                                    commands=["%s/tools/attila/attila construct.py" % options.attila_path],
-                                   path="%s/decode/dlatSI" % options.language_path)
+                                   path="%s/dlatSI" % options.config_path,
+                                   stdout_path=options.stdout,
+                                   stderr_path=options.stderr)
+
         dlatsi_construct_job.submit(options.commit)
         dlatsi_construct_jobs.append(dlatsi_construct_job)
 
@@ -135,13 +150,14 @@ if options.start == "dlatsi":
     logging.info("launching %d speaker-independent training jobs (dlatsi)", options.number)
     dlatsi_jobs = []
     for i in range(options.number):
-        dlatsi_job = Job(name="dlatsi",
+        dlatsi_job = Job(name="dlatsi_j%d_n%d" % (i, options.number),
                          dependencies=dlatsi_construct_jobs,
                          resources={},
                          commands=["%s/tools/attila/attila test.py -w 0.060 -n %s -j %s" % (options.attila_path, options.number, i),
                                    "%s/tools/attila/attila consensus.py -n %s -j %s" % (options.attila_path, options.number, i)],
-                         path="%s/decode/dlatSI" % options.language_path,
-                         )
+                         path="%s/dlatSI" % options.config_path,
+                         stdout_path=options.stdout,
+                         stderr_path=options.stderr)
         dlatsi_job.submit(options.commit)
         dlatsi_jobs.append(dlatsi_job)
 
@@ -152,11 +168,13 @@ if options.start == "dlatsi":
         dlatsi_rsync_job = Job(name="post_dlatsi_rsync",
                                dependencies=dlatsi_jobs,
                                resources={"nodes" : node},
-                               commands=["rsync -avz -e ssh %s:%s/decode/dlatSI/%s %s/decode/dlatSI/" % (n, options.language_path, d, options.language_path) for n in nodes for d in dlatsi_locs],
-                               path="%s/decode/dlatSI" % options.language_path,
-                               )
+                               commands=["rsync -avz -e ssh %s:%s %s" % (n, options.output_path, options.output_path) for n in nodes],
+                               stdout_path=options.stdout,
+                               stderr_path=options.stderr)
         dlatsi_rsync_job.submit(options.commit)
         dlatsi_rsync_jobs.append(dlatsi_rsync_job)
+
+sys.exit()
 
 if options.start == "dlatsa1":
     dlatsi_rsync_jobs = []
@@ -172,7 +190,7 @@ if options.start in ["dlatsi", "dlatsa1"] and options.end != "dlatsi":
                           commands=["%s/tools/attila/attila vtln.py -n %s -j %s" % (options.attila_path, options.number, i),
                                     "%s/tools/attila/attila cat.py -n %s -j %s" % (options.attila_path, options.number, i),
                                     "%s/tools/attila/attila fmllr.py -n %s -j %s" % (options.attila_path, options.number, i)],
-                          path="%s/decode/dlatSA" % options.language_path,
+                          path="%s/decode/dlatSA" % options.config_path,
                           )
         dlatsa1_job.submit(options.commit)
         dlatsa1_jobs.append(dlatsa1_job)
@@ -184,8 +202,8 @@ if options.start in ["dlatsi", "dlatsa1"] and options.end != "dlatsi":
         dlatsa1_rsync_job = Job(name="post_dlatsa1_rsync",
                                dependencies=dlatsa1_jobs,
                                resources={"nodes" : node},
-                               commands=["rsync -avz -e ssh %s:%s/decode/dlatSA/%s %s/decode/dlatSA/" % (n, options.language_path, d, options.language_path) for n in nodes for d in dlatsa_locs],
-                               path="%s/decode/dlatSA" % options.language_path,
+                               commands=["rsync -avz -e ssh %s:%s/decode/dlatSA/%s %s/decode/dlatSA/" % (n, options.config_path, d, options.config_path) for n in nodes for d in dlatsa_locs],
+                               path="%s/decode/dlatSA" % options.config_path,
                                )
         dlatsa1_rsync_job.submit(options.commit)
         dlatsa1_rsync_jobs.append(dlatsa1_rsync_job)
@@ -203,7 +221,7 @@ if options.start in ["dlatsi", "dlatsa1", "dlatsa2"] and options.end not in ["dl
                                    resources={"nodes" : node},
                                    dependencies=dlatsa1_rsync_jobs,
                                    commands=["%s/tools/attila/attila construct.py" % options.attila_path],
-                                   path="%s/decode/dlatSA" % options.language_path)
+                                   path="%s/decode/dlatSA" % options.config_path)
         dlatsa_construct_job.submit(options.commit)
         dlatsa_construct_jobs.append(dlatsa_construct_job)
 
@@ -217,7 +235,7 @@ if options.start in ["dlatsi", "dlatsa1", "dlatsa2"] and options.end not in ["dl
                           commands=["%s/tools/attila/attila test.py -w 0.060 -n %s -j %s" % (options.attila_path, options.number, i),
                                     #"%s/VT-2-5-babel/tools/attila/attila test_cleanup.py -n %s -j %s" % (options.asr_path, options.number, i),
                                     "%s/tools/attila/attila consensus.py -n %s -j %s" % (options.attila_path, options.number, i)],
-                          path="%s/decode/dlatSA" % options.language_path,
+                          path="%s/decode/dlatSA" % options.config_path,
                           )
         dlatsa2_job.submit(options.commit)
         dlatsa2_jobs.append(dlatsa2_job)
@@ -229,8 +247,8 @@ if options.start in ["dlatsi", "dlatsa1", "dlatsa2"] and options.end not in ["dl
         dlatsa2_rsync_job = Job(name="post_dlatsa2_rsync",
                                dependencies=dlatsa2_jobs,
                                resources={"nodes" : node},
-                               commands=["rsync -avz -e ssh %s:%s/decode/dlatSA/%s %s/decode/dlatSA/" % (n, options.language_path, d, options.language_path) for n in nodes for d in dlatsa_locs],
-                               path="%s/decode/dlatSA" % options.language_path,
+                               commands=["rsync -avz -e ssh %s:%s/decode/dlatSA/%s %s/decode/dlatSA/" % (n, options.config_path, d, options.config_path) for n in nodes for d in dlatsa_locs],
+                               path="%s/decode/dlatSA" % options.config_path,
                                )
         dlatsa2_rsync_job.submit(options.commit)
         dlatsa2_rsync_jobs.append(dlatsa1_rsync_job)

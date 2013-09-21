@@ -276,6 +276,7 @@ def create_asr_directory(target, source, env):
         "LANGUAGE_MODEL" : language_model,
         "PCM_DIR" : args["PCM_DIR"],
         "ROOT_DIR" : args["IBM_PATH"],
+        "OUTPUT_DIR" : args["OUTPUT_DIR"],
         "VOCABULARY" : vocabulary,
         "DICTIONARY" : dictionary,
         "DATABASE" : database,
@@ -289,13 +290,14 @@ def create_asr_directory(target, source, env):
     return None
 
 def create_asr_directory_emitter(target, source, env):
-    language_model, vocabulary, dictionary, database, data_path, ibm_path = source[0:6]
-    if len(source) == 7:
+    language_model, vocabulary, dictionary, database, data_path, ibm_path, output_path = source[0:7]
+    if len(source) == 8:
         args = source[-1].read()
     else:
         args = {}
     args["PCM_DIR"] = args.get("PCM_DIR", data_path.rstr())
     args["IBM_PATH"] = args.get("IBM_PATH", ibm_path.rstr())
+    args["OUTPUT_DIR"] = args.get("OUTPUT_PATH", output_path.rstr())
     base = target[0].rstr()
     dlatsi = ["cfg.py", "construct.py", "test.py", "consensus.py"]
     dlatsa = ["cfg.py", "construct.py", "vtln.py", "fmllr.py", "test.py", "test_cleanup.py", "consensus.py", "vcfg.py"]

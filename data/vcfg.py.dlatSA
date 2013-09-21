@@ -55,5 +55,5 @@ normDir     = 'cms/'
 vtlnMinCount = 100.0
 
 # Transcripts
-txtDir      = '../dlatSI/cons/'
+txtDir      = os.path.join(outputDir, 'dlatSI/cons/')
 dictFile  = '${DICTIONARY.abspath}'

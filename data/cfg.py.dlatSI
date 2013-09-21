@@ -58,9 +58,9 @@ graph     = 'param/dnet.bin.gz'
 selectMaxL = '[256]'
 
 # decoding output
-ctmDir    = 'ctm/'
-latDir    = 'lat/'
+ctmDir    = os.path.join(outputDir, 'dlatSI/ctm/')
+latDir    = os.path.join(outputDir, 'dlatSI/lat/')
 
 # consensus output
-cctmDir   = 'cctm/'
-consDir   = 'cons/'
+cctmDir   = os.path.join(outputDir, 'dlatSI/cctm/')
+consDir   = os.path.join(outputDir, 'dlatSI/cons/')

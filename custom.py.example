@@ -11,5 +11,6 @@ import os.path
 #        "DATA_PATH" : os.path.join(BASE_PATH, "106-Delivery-Tagalog-v0.2g"),
 #        "IBM_PATH" : os.path.join(BASE_PATH, "Tagalog/decode"),
 #        "DATABASE" : "db.dev.auto.128-256-0.2",
+#        "OUTPUT_PATH" : "/home/tom/asr_output/tagalog",
 #        },
 #    }

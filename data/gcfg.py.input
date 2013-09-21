@@ -19,6 +19,7 @@ errorHandler.setVerbosity(errorHandler.INFO_LOG)
 # root directory
 # Modify this rootDir 
 rootDir = '${ROOT_DIR}'
+outputDir = '${OUTPUT_DIR}'
 
 # dbase
 dbFile        = '${TRAINING_DATABASE.abspath}'

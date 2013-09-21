@@ -13,6 +13,7 @@ vars.AddVariables(
     ("ATILLA_PATH", "", ""),
     ("SEQUITUR_PATH", "", ""),
     ("ATILLA_INTERPRETER", "", "${ATILLA_PATH}/tools/attila/attila"),
+    ("OUTPUT_PATH", "", ""),
     ("ADD_WORDS", "", "/usr/bin/add_words"),
     ("BABEL_REPO", "", None),
     ("BABEL_RESOURCES", "", None),
@@ -98,6 +99,7 @@ for name, experiment in env["EXPERIMENTS"].iteritems():
                                        os.path.join(experiment["IBM_PATH"], "segment", "db", experiment["DATABASE"]),
                                        Dir(experiment["DATA_PATH"]),
                                        Dir(experiment["IBM_PATH"]),
+                                       Dir(os.path.join(experiment["OUTPUT_PATH"], "baseline"))
                                        ])
 
     midline = env.CreateASRDirectory(Dir(os.path.join("work", "%s_midline" % name)),
@@ -107,6 +109,7 @@ for name, experiment in env["EXPERIMENTS"].iteritems():
                                       os.path.join(experiment["IBM_PATH"], "segment", "db", experiment["DATABASE"]),
                                       Dir(experiment["DATA_PATH"]),
                                       Dir(experiment["IBM_PATH"]),
+                                      Dir(os.path.join(experiment["OUTPUT_PATH"], "midline"))
                                       ])
 
     model1_50k = env.CreateASRDirectory(Dir(os.path.join("work", "%s_model1_50k" % name)),
@@ -116,6 +119,7 @@ for name, experiment in env["EXPERIMENTS"].iteritems():
                                          os.path.join(experiment["IBM_PATH"], "segment", "db", experiment["DATABASE"]),
                                          Dir(experiment["DATA_PATH"]),
                                          Dir(experiment["IBM_PATH"]),
+                                         Dir(os.path.join(experiment["OUTPUT_PATH"], "model1_50k"))
                                          ])
 
     #pronunciation_model = env.TrainPronunciationModel("work/pronunciation_model_1.txt", ["input/dict.train", Value(5)])
