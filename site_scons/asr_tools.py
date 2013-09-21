@@ -300,7 +300,7 @@ def create_asr_directory_emitter(target, source, env):
     args["OUTPUT_DIR"] = args.get("OUTPUT_PATH", output_path.rstr())
     base = target[0].rstr()
     dlatsi = ["cfg.py", "construct.py", "test.py", "consensus.py"]
-    dlatsa = ["cfg.py", "construct.py", "vtln.py", "fmllr.py", "test.py", "test_cleanup.py", "consensus.py", "vcfg.py"]
+    dlatsa = ["cfg.py", "construct.py", "vtln.py", "fmllr.py", "test.py", "test_cleanup.py", "consensus.py", "vcfg.py", "cat.py"]
 
     new_sources = ["data/gcfg.py.input"] + ["data/%s.dlatSI" % x for x in dlatsi] + ["data/%s.dlatSA" % x for x in dlatsa] + ["data/gcfg.py.input"] + source[0:4] + [env.Value(args)]
     new_targets = [os.path.join(base, "input", "gcfg.py")] + [os.path.join(base, "dlatSI", x) for x in dlatsi] + [os.path.join(base, "dlatSA", x) for x in dlatsa]

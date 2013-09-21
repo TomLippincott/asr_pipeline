@@ -51,7 +51,7 @@ fsFile    = os.path.join(paramDir, '4.fs')
 vtlgsFile   = os.path.join(rootDir, 'buildVTL/param/4.vgs')
 vtlmsFile   = os.path.join(rootDir, 'buildVTL/param/4.vms')
 vtltreeFile = os.path.join(rootDir, 'buildCD2/param/tree')
-normDir     = 'cms/'
+normDir     = os.path.join(outputDir, 'dlatSA/cms/')
 vtlnMinCount = 100.0
 
 # Transcripts

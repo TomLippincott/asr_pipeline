@@ -38,7 +38,7 @@ jnr = int(options.jnr)
 # Configuration Modifier
 # ------------------------------------------
 
-cfg.warpFile = 'warp.lst.' + str(jid)
+cfg.warpFile = os.path.join(cfg.outputDir, 'warp.lst.' + str(jid))
 
 # ------------------------------------------
 # Attila boot

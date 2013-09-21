@@ -188,7 +188,7 @@ if options.start in ["dlatsi", "dlatsa1"] and options.end != "dlatsi":
                           dependencies=dlatsi_rsync_jobs,
                           resources={},
                           commands=["%s/tools/attila/attila vtln.py -n %s -j %s" % (options.attila_path, options.number, i),
-                                    "%s/tools/attila/attila cat.py -n %s -j %s" % (options.attila_path, options.number, i),
+                                    #"%s/tools/attila/attila cat.py -n %s -j %s" % (options.attila_path, options.number, i),
                                     "%s/tools/attila/attila fmllr.py -n %s -j %s" % (options.attila_path, options.number, i)],
                           path="%s/decode/dlatSA" % options.config_path,
                           )
@@ -200,11 +200,13 @@ if options.start in ["dlatsi", "dlatsa1"] and options.end != "dlatsi":
     dlatsa1_rsync_jobs = []
     for node in nodes:
         dlatsa1_rsync_job = Job(name="post_dlatsa1_rsync",
-                               dependencies=dlatsa1_jobs,
-                               resources={"nodes" : node},
-                               commands=["rsync -avz -e ssh %s:%s/decode/dlatSA/%s %s/decode/dlatSA/" % (n, options.config_path, d, options.config_path) for n in nodes for d in dlatsa_locs],
-                               path="%s/decode/dlatSA" % options.config_path,
-                               )
+                                dependencies=dlatsa1_jobs,
+                                resources={"nodes" : node},
+                                commands=["rsync -avz -e ssh %s:%s %s" % (n, options.output_path, options.output_path) for n in nodes] + \
+                                    ["%s/tools/attila/attila cat.py" % options.attila_path],
+                                #commands=["rsync -avz -e ssh %s:%s/decode/dlatSA/%s %s/decode/dlatSA/" % (n, options.config_path, d, options.config_path) for n in nodes for d in dlatsa_locs],
+                                path="%s/decode/dlatSA" % options.config_path,
+                                )
         dlatsa1_rsync_job.submit(options.commit)
         dlatsa1_rsync_jobs.append(dlatsa1_rsync_job)
 
@@ -245,10 +247,11 @@ if options.start in ["dlatsi", "dlatsa1", "dlatsa2"] and options.end not in ["dl
     dlatsa2_rsync_jobs = []
     for node in nodes:
         dlatsa2_rsync_job = Job(name="post_dlatsa2_rsync",
-                               dependencies=dlatsa2_jobs,
-                               resources={"nodes" : node},
-                               commands=["rsync -avz -e ssh %s:%s/decode/dlatSA/%s %s/decode/dlatSA/" % (n, options.config_path, d, options.config_path) for n in nodes for d in dlatsa_locs],
-                               path="%s/decode/dlatSA" % options.config_path,
-                               )
+                                dependencies=dlatsa2_jobs,
+                                resources={"nodes" : node},
+                                commands=["rsync -avz -e ssh %s:%s %s" % (n, options.output_path, options.output_path) for n in nodes],
+                                #commands=["rsync -avz -e ssh %s:%s/decode/dlatSA/%s %s/decode/dlatSA/" % (n, options.config_path, d, options.config_path) for n in nodes for d in dlatsa_locs],
+                                path="%s/decode/dlatSA" % options.config_path,
+                                )
         dlatsa2_rsync_job.submit(options.commit)
         dlatsa2_rsync_jobs.append(dlatsa1_rsync_job)

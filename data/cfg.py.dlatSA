@@ -22,9 +22,9 @@ fe = frontend.FeCombo(db,samplingrate,featuretype)
 fe.end            = fe.fmmi
 fe.pcm.pcmDir     = pcmDir
 fe.norm.normMode  = 1
-fe.norm.normDir   = 'cms/'
-fe.fmllr.fmllrDir = 'fmllr/'
-warpFile          = 'warp.lst'
+fe.norm.normDir   = os.path.join(outputDir, 'dlatSA/cms/')
+fe.fmllr.fmllrDir = os.path.join(outputDir, 'dlatSA/fmllr/')
+warpFile          = os.path.join(outputDir, 'warp.lst')
 ldaFile           = os.path.join(rootDir, 'buildVTL/param/30.mat')
 ictx              = 8
 octx              = 4
@@ -51,7 +51,7 @@ fsFile    = os.path.join(paramDir, '4.fs')
 dictFile  = '${DICTIONARY.abspath}'
 vocab     = '${VOCABULARY.abspath}'
 lm        = '${LANGUAGE_MODEL.abspath}'
-graph     = 'param/dnet.bin.gz'
+graph     = os.path.join(outputDir, 'dlatSA/param/dnet.bin.gz')
 
 # pruning
 selectMaxL = '[256]'

@@ -52,7 +52,7 @@ fsFile    = os.path.join(paramDir, '4.fs')
 dictFile  = '${DICTIONARY.abspath}'
 vocab     = '${VOCABULARY.abspath}'
 lm        = '${LANGUAGE_MODEL.abspath}'
-graph     = 'param/dnet.bin.gz'
+graph     = os.path.join(outputDir, 'dlatSI/param/dnet.bin.gz')
 
 # pruning
 selectMaxL = '[256]'
