@@ -14,11 +14,11 @@ class PathAction(argparse.Action):
         setattr(namespace, self.dest, apath)
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-A", "--attila_path", dest="attila_path", action=PathAction)
-parser.add_argument("-C", "--config_path", dest="config_path", action=PathAction)
-parser.add_argument("-O", "--output_path", dest="output_path", action=PathAction)
-parser.add_argument("-e", "--stderr", dest="stderr", action=PathAction)
-parser.add_argument("-o", "--stdout", dest="stdout", action=PathAction)
+parser.add_argument("-A", "--attila_path", dest="attila_path", action=PathAction, required=True)
+parser.add_argument("-C", "--config_path", dest="config_path", action=PathAction, required=True)
+parser.add_argument("-O", "--output_path", dest="output_path", action=PathAction, required=True)
+parser.add_argument("-e", "--stderr", dest="stderr", action=PathAction, required=True)
+parser.add_argument("-o", "--stdout", dest="stdout", action=PathAction, required=True)
 parser.add_argument("-n", "--number", dest="number", type=int, default=10)
 parser.add_argument("-c", "--commit", dest="commit", default=False, action="store_true")
 parser.add_argument("-H", "--hold", dest="hold", default=False, action="store_true")
@@ -60,9 +60,9 @@ class Job():
     def __str__(self):
         lines = ["#PBS -N %s" % self.name] + ["#PBS -l %s=%s" % (k, v) for k, v in self.resources.iteritems()]
         if self.stdout_path:
-            lines.append("#PBS -o %s" % self.stdout_path)
+            lines.append("#PBS -o %s" % os.path.join(self.stdout_path, "%s.out" % (self.name)))
         if self.stderr_path:
-            lines.append("#PBS -e %s" % self.stderr_path)
+            lines.append("#PBS -e %s" % os.path.join(self.stderr_path, "%s.err" % (self.name)))
         if self.dependencies:
             arrays = [x.job_id for x in self.dependencies if x.array > 0]
             nonarrays = [x.job_id for x in self.dependencies if x.array == 0]
@@ -110,22 +110,11 @@ def get_nodes(commit):
 nodes = get_nodes(options.commit)
 logging.info("Available nodes: %s", ", ".join(nodes))
 
-#sys.exit()
-# input/dict.test input/vocab buildLM/lm.3gm.arpabo.gz
-#
-# clean -> [constructSI -> dlatSI -> rsync] -> [dlatSA1 -> rsync] -> [constructSA -> dlatSA2 -> rsync]
-#
-# dlatsa - ctm lat cctm cons (refers to dlatsi-cons) (maybe makes cms fmllr)
-#dlatsi_locs = ["lat", "ctm", "cctm", "cons"]
-#dlatsa_locs = ["lat", "ctm", "cctm", "cons"]
-
-
 if options.start == "dlatsi":
-
     logging.info("launching initial clean-up and speaker-independent construction jobs, one per node")
     dlatsi_construct_jobs = []
     for node in nodes:
-        cleanup_job = Job(name="cleanup",
+        cleanup_job = Job(name="cleanup_%s" % node,
                           resources={"nodes" : node},
                           dependencies=[],
                           commands=["rm -rf %s/*" % options.output_path],
@@ -135,7 +124,7 @@ if options.start == "dlatsi":
                 
         cleanup_job.submit(options.commit)
 
-        dlatsi_construct_job = Job(name="dlatsi_construct",
+        dlatsi_construct_job = Job(name="dlatsi_construct_%s" % node,
                                    resources={"nodes" : node},
                                    dependencies=[cleanup_job],
                                    commands=["%s/tools/attila/attila construct.py" % options.attila_path],
@@ -165,7 +154,7 @@ if options.start == "dlatsi":
     logging.info("rsyncing results of dlatsi")
     dlatsi_rsync_jobs = []
     for node in nodes:
-        dlatsi_rsync_job = Job(name="post_dlatsi_rsync",
+        dlatsi_rsync_job = Job(name="post_dlatsi_rsync_%s" % node,
                                dependencies=dlatsi_jobs,
                                resources={"nodes" : node},
                                commands=["rsync -avz -e ssh %s:%s/* %s" % (n, options.output_path, options.output_path) for n in nodes],
@@ -173,8 +162,6 @@ if options.start == "dlatsi":
                                stderr_path=options.stderr)
         dlatsi_rsync_job.submit(options.commit)
         dlatsi_rsync_jobs.append(dlatsi_rsync_job)
-
-sys.exit()
 
 if options.start == "dlatsa1":
     dlatsi_rsync_jobs = []
@@ -184,14 +171,14 @@ if options.start in ["dlatsi", "dlatsa1"] and options.end != "dlatsi":
     logging.info("launching %d speaker-adapted training jobs (dlatsa1)", options.number)
     dlatsa1_jobs = []
     for i in range(options.number):
-        dlatsa1_job = Job(name="dlatsa1",
+        dlatsa1_job = Job(name="dlatsa1_j%d_n%d" % (i, options.number),
                           dependencies=dlatsi_rsync_jobs,
                           resources={},
                           commands=["%s/tools/attila/attila vtln.py -n %s -j %s" % (options.attila_path, options.number, i),
-                                    #"%s/tools/attila/attila cat.py -n %s -j %s" % (options.attila_path, options.number, i),
                                     "%s/tools/attila/attila fmllr.py -n %s -j %s" % (options.attila_path, options.number, i)],
                           path="%s/decode/dlatSA" % options.config_path,
-                          )
+                          stdout_path=options.stdout,
+                          stderr_path=options.stderr)
         dlatsa1_job.submit(options.commit)
         dlatsa1_jobs.append(dlatsa1_job)
 
@@ -199,14 +186,14 @@ if options.start in ["dlatsi", "dlatsa1"] and options.end != "dlatsi":
     logging.info("rsyncing results of dlatsa1")
     dlatsa1_rsync_jobs = []
     for node in nodes:
-        dlatsa1_rsync_job = Job(name="post_dlatsa1_rsync",
+        dlatsa1_rsync_job = Job(name="post_dlatsa1_rsync_%s" % node,
                                 dependencies=dlatsa1_jobs,
                                 resources={"nodes" : node},
                                 commands=["rsync -avz -e ssh %s:%s/* %s" % (n, options.output_path, options.output_path) for n in nodes] + \
                                     ["%s/tools/attila/attila cat.py" % options.attila_path],
-                                #commands=["rsync -avz -e ssh %s:%s/decode/dlatSA/%s %s/decode/dlatSA/" % (n, options.config_path, d, options.config_path) for n in nodes for d in dlatsa_locs],
                                 path="%s/decode/dlatSA" % options.config_path,
-                                )
+                                stdout_path=options.stdout,
+                                stderr_path=options.stderr)
         dlatsa1_rsync_job.submit(options.commit)
         dlatsa1_rsync_jobs.append(dlatsa1_rsync_job)
 
@@ -219,11 +206,13 @@ if options.start in ["dlatsi", "dlatsa1", "dlatsa2"] and options.end not in ["dl
     logging.info("launching speaker-adapted construction jobs, one per node")
     dlatsa_construct_jobs = []
     for node in nodes:
-        dlatsa_construct_job = Job(name="dlatsa_construct",
+        dlatsa_construct_job = Job(name="dlatsa_construct_%s" % node,
                                    resources={"nodes" : node},
                                    dependencies=dlatsa1_rsync_jobs,
                                    commands=["%s/tools/attila/attila construct.py" % options.attila_path],
-                                   path="%s/decode/dlatSA" % options.config_path)
+                                   path="%s/decode/dlatSA" % options.config_path,
+                                   stdout_path=options.stdout,
+                                   stderr_path=options.stderr)
         dlatsa_construct_job.submit(options.commit)
         dlatsa_construct_jobs.append(dlatsa_construct_job)
 
@@ -231,14 +220,14 @@ if options.start in ["dlatsi", "dlatsa1", "dlatsa2"] and options.end not in ["dl
     logging.info("launching %d speaker-adapted training jobs (dlatsa2)", options.number)
     dlatsa2_jobs = []
     for i in range(options.number):
-        dlatsa2_job = Job(name="dlatsa2",
+        dlatsa2_job = Job(name="dlatsa2_j%d_n%d" % (i, options.number),
                           dependencies=dlatsa1_rsync_jobs,
                           resources={},
                           commands=["%s/tools/attila/attila test.py -w 0.060 -n %s -j %s" % (options.attila_path, options.number, i),
-                                    #"%s/VT-2-5-babel/tools/attila/attila test_cleanup.py -n %s -j %s" % (options.asr_path, options.number, i),
                                     "%s/tools/attila/attila consensus.py -n %s -j %s" % (options.attila_path, options.number, i)],
                           path="%s/decode/dlatSA" % options.config_path,
-                          )
+                          stdout_path=options.stdout,
+                          stderr_path=options.stderr)
         dlatsa2_job.submit(options.commit)
         dlatsa2_jobs.append(dlatsa2_job)
 
@@ -246,12 +235,12 @@ if options.start in ["dlatsi", "dlatsa1", "dlatsa2"] and options.end not in ["dl
     logging.info("rsyncing results of dlatsa2")
     dlatsa2_rsync_jobs = []
     for node in nodes:
-        dlatsa2_rsync_job = Job(name="post_dlatsa2_rsync",
+        dlatsa2_rsync_job = Job(name="post_dlatsa2_rsync_%s" % node,
                                 dependencies=dlatsa2_jobs,
                                 resources={"nodes" : node},
                                 commands=["rsync -avz -e ssh %s:%s/* %s" % (n, options.output_path, options.output_path) for n in nodes],
-                                #commands=["rsync -avz -e ssh %s:%s/decode/dlatSA/%s %s/decode/dlatSA/" % (n, options.config_path, d, options.config_path) for n in nodes for d in dlatsa_locs],
                                 path="%s/decode/dlatSA" % options.config_path,
-                                )
+                                stdout_path=options.stdout,
+                                stderr_path=options.stderr)
         dlatsa2_rsync_job.submit(options.commit)
         dlatsa2_rsync_jobs.append(dlatsa1_rsync_job)
