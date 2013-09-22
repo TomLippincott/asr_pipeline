@@ -168,7 +168,7 @@ if options.start == "dlatsi":
         dlatsi_rsync_job = Job(name="post_dlatsi_rsync",
                                dependencies=dlatsi_jobs,
                                resources={"nodes" : node},
-                               commands=["rsync -avz -e ssh %s:%s %s" % (n, options.output_path, options.output_path) for n in nodes],
+                               commands=["rsync -avz -e ssh %s:%s/* %s" % (n, options.output_path, options.output_path) for n in nodes],
                                stdout_path=options.stdout,
                                stderr_path=options.stderr)
         dlatsi_rsync_job.submit(options.commit)
@@ -202,7 +202,7 @@ if options.start in ["dlatsi", "dlatsa1"] and options.end != "dlatsi":
         dlatsa1_rsync_job = Job(name="post_dlatsa1_rsync",
                                 dependencies=dlatsa1_jobs,
                                 resources={"nodes" : node},
-                                commands=["rsync -avz -e ssh %s:%s %s" % (n, options.output_path, options.output_path) for n in nodes] + \
+                                commands=["rsync -avz -e ssh %s:%s/* %s" % (n, options.output_path, options.output_path) for n in nodes] + \
                                     ["%s/tools/attila/attila cat.py" % options.attila_path],
                                 #commands=["rsync -avz -e ssh %s:%s/decode/dlatSA/%s %s/decode/dlatSA/" % (n, options.config_path, d, options.config_path) for n in nodes for d in dlatsa_locs],
                                 path="%s/decode/dlatSA" % options.config_path,
@@ -249,7 +249,7 @@ if options.start in ["dlatsi", "dlatsa1", "dlatsa2"] and options.end not in ["dl
         dlatsa2_rsync_job = Job(name="post_dlatsa2_rsync",
                                 dependencies=dlatsa2_jobs,
                                 resources={"nodes" : node},
-                                commands=["rsync -avz -e ssh %s:%s %s" % (n, options.output_path, options.output_path) for n in nodes],
+                                commands=["rsync -avz -e ssh %s:%s/* %s" % (n, options.output_path, options.output_path) for n in nodes],
                                 #commands=["rsync -avz -e ssh %s:%s/decode/dlatSA/%s %s/decode/dlatSA/" % (n, options.config_path, d, options.config_path) for n in nodes for d in dlatsa_locs],
                                 path="%s/decode/dlatSA" % options.config_path,
                                 )
