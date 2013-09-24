@@ -176,7 +176,7 @@ if options.start in ["dlatsi", "dlatsa1"] and options.end != "dlatsi":
                           resources={},
                           commands=["%s/tools/attila/attila vtln.py -n %s -j %s" % (options.attila_path, options.number, i),
                                     "%s/tools/attila/attila fmllr.py -n %s -j %s" % (options.attila_path, options.number, i)],
-                          path="%s/decode/dlatSA" % options.config_path,
+                          path="%s/dlatSA" % options.config_path,
                           stdout_path=options.stdout,
                           stderr_path=options.stderr)
         dlatsa1_job.submit(options.commit)
@@ -191,7 +191,7 @@ if options.start in ["dlatsi", "dlatsa1"] and options.end != "dlatsi":
                                 resources={"nodes" : node},
                                 commands=["rsync -avz -e ssh %s:%s/* %s" % (n, options.output_path, options.output_path) for n in nodes] + \
                                     ["%s/tools/attila/attila cat.py" % options.attila_path],
-                                path="%s/decode/dlatSA" % options.config_path,
+                                path="%s/dlatSA" % options.config_path,
                                 stdout_path=options.stdout,
                                 stderr_path=options.stderr)
         dlatsa1_rsync_job.submit(options.commit)
@@ -210,7 +210,7 @@ if options.start in ["dlatsi", "dlatsa1", "dlatsa2"] and options.end not in ["dl
                                    resources={"nodes" : node},
                                    dependencies=dlatsa1_rsync_jobs,
                                    commands=["%s/tools/attila/attila construct.py" % options.attila_path],
-                                   path="%s/decode/dlatSA" % options.config_path,
+                                   path="%s/dlatSA" % options.config_path,
                                    stdout_path=options.stdout,
                                    stderr_path=options.stderr)
         dlatsa_construct_job.submit(options.commit)
@@ -225,7 +225,7 @@ if options.start in ["dlatsi", "dlatsa1", "dlatsa2"] and options.end not in ["dl
                           resources={},
                           commands=["%s/tools/attila/attila test.py -w 0.060 -n %s -j %s" % (options.attila_path, options.number, i),
                                     "%s/tools/attila/attila consensus.py -n %s -j %s" % (options.attila_path, options.number, i)],
-                          path="%s/decode/dlatSA" % options.config_path,
+                          path="%s/dlatSA" % options.config_path,
                           stdout_path=options.stdout,
                           stderr_path=options.stderr)
         dlatsa2_job.submit(options.commit)
@@ -239,7 +239,7 @@ if options.start in ["dlatsi", "dlatsa1", "dlatsa2"] and options.end not in ["dl
                                 dependencies=dlatsa2_jobs,
                                 resources={"nodes" : node},
                                 commands=["rsync -avz -e ssh %s:%s/* %s" % (n, options.output_path, options.output_path) for n in nodes],
-                                path="%s/decode/dlatSA" % options.config_path,
+                                path="%s/dlatSA" % options.config_path,
                                 stdout_path=options.stdout,
                                 stderr_path=options.stderr)
         dlatsa2_rsync_job.submit(options.commit)
