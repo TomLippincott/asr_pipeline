@@ -191,62 +191,6 @@ def augment_language_model_from_babel(target, source, env):
         return err
     return None
 
-def _augment_language_model(target, source, env):
-    """
-    Input: Arpabo file, Vocabulary
-    Output: Arpabo file
-    """
-    arpabo_rx = re.compile(r"""
-(?P<preamble>.*
-BBOARD_BEGIN
-(?P<bboard>.*?)
-BBOARD_END
-\s+
-\\data\\
-.*
-)
-(?P<ngrams>
-\\1-grams:.*?
-)
-\\end\\
-\s*
-""", re.X | re.S | re.M)
-    ngram_rx = re.compile(r"""
-^\\(\d+)-grams:\n
-(.*?)\n
-\n
-""", re.X | re.S | re.M)
-    ngrams = {}
-    with meta_open(source[0].rstr()) as arpabo, meta_open(source[1].rstr()) as vocab:
-        words = [x.strip() for x in vocab]
-        arpabo_match = arpabo_rx.match(arpabo.read())
-        for m in ngram_rx.finditer(arpabo_match.group("ngrams")):
-            n = int(m.group(1))
-            ngrams[n] = {}
-            for line in m.group(2).strip().lower().split("\n"):
-                toks = line.split()
-                seq = tuple(toks[1:n + 1])
-                if len(toks) < n + 2:
-                    ngrams[n][seq] = (float(toks[0]), None)
-                else:
-                    ngrams[n][seq] = (float(toks[0]), float(toks[-1]))
-        avg_prob = sum([x[0] for x in ngrams[1].values()]) / len(ngrams[1])
-        new_words = [x for x in words if (x,) not in ngrams[1] if "_" not in x and re.match(r".*[a-z].*", x)]
-        print new_words
-        for word in new_words:
-            ngrams[1][(word.rstrip("-"),)] = (avg_prob, None)
-        with meta_open(target[0].rstr(), "w") as ofd:
-            ofd.write(arpabo_match.group("preamble"))
-            for n, grams in ngrams.iteritems():
-                ofd.write("\\%d-grams:\n" % n)
-                for gram, (prob, bow) in grams.iteritems():
-                    if bow:
-                        ofd.write("%f %s %f\n" % (prob, " ".join(gram), bow))
-                    else:
-                        ofd.write("%f %s\n" % (prob, " ".join(gram)))
-                ofd.write("\n")
-            ofd.write("\\end\\\n\n")
-    return None
 
 #
 # Generic Audio Model
@@ -267,6 +211,21 @@ BBOARD_END
 #
 # Context-Dependent Model
 #
+
+
+#
+#
+#
+
+
+def collect_text(target, source, env):
+    with meta_open(target[0].rstr(), "w") as ofd:
+        for dname in source:
+            for fname in glob(os.path.join(dname.rstr(), "*.txt")):
+                with meta_open(fname) as fd:
+                    ofd.write(fd.read())
+    return None
+
 
 def create_asr_directory(target, source, env):
     language_model, vocabulary, dictionary, database, args = source[-5:]
@@ -320,5 +279,9 @@ def TOOLS_ADD(env):
                            "TranscriptVocabulary" : Builder(action=transcript_vocabulary),
                            "TrainPronunciationModel" : Builder(action=train_pronunciation_model),
                            "CreateASRDirectory" : Builder(action=create_asr_directory, emitter=create_asr_directory_emitter),
+
+                           "CollectText" : Builder(action=collect_text),
+                           #"BuildCounts" : Builder(action="CountNGram -n 4 ${SOURCE[0]} ${SOURCE[1]} lm-train"),
+                           #"BuildNGram" : Builder(action="BuildNGram.sh -n 3 -arpabo lm-train ${TARGET[0]}"
                            })
                
