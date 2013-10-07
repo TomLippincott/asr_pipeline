@@ -82,11 +82,11 @@ for name, experiment in env["EXPERIMENTS"].iteritems():
     #topline_text = env.CollectText("work/topline_text.txt", [env.Dir(x) for x in glob(os.path.join(experiment["DATA_PATH"], "*/*/transcription"))])
     #database_file, data_path, output_path, language_model_file, dictionary_file = [experiment[x] for x in ["DATABASE_FILE", "DATA_PATH", "OUTPUT_PATH", "LANGUAGE_MODEL_FILE", "DICTIONARY_FILE"]]
 
-    baseline = env.CreateASRDirectory(Dir(os.path.join("work", "%s_baseline" % name)),
-                                      [env.Value(experiment["FILES"]),
-                                       env.Value(experiment["DIRECTORIES"]),
-                                       env.Value(experiment["PARAMETERS"]),
-                                       ])
+    baseline = env.CreateSmallASRDirectory(Dir(os.path.join("work", "%s_baseline" % name)),
+                                           [env.Value(experiment["FILES"]),
+                                            env.Value(experiment["DIRECTORIES"]),
+                                            env.Value(experiment["PARAMETERS"]),
+                                            ])
                                       #database_file,
                                       # language_model_file,
                                       # dictionary_file,

@@ -239,13 +239,9 @@ def create_asr_directory(target, source, env):
 
     # create one big configuration dictionary
     config = {k : v for k, v in sum([list(y) for y in [files.iteritems(), directories.iteritems(), parameters.iteritems()]], [])}
-    config["GCFG_FILE"] = target[0]
-    config["DLATSI_GRAPH_OFILE"] = target[0]
-    config["DLATSI_CTM_OPATH"] = target[0]
-    config["DLATSI_LAT_OPATH"] = target[0]
-    config["DLATSI_CTTM_OPATH"] = target[0]
-    config["DLATSI_CONS_OPATH"] = target[0]
-    
+    config["GRAPH_OFILE"] = env.File(os.path.join(config["OUTPUT_PATH"].rstr(), "dnet.bin.gz"))
+    config["CTM_OPATH"] = env.Dir(os.path.join(config["OUTPUT_PATH"].rstr(), "ctm"))
+    config["LAT_OPATH"] = env.Dir(os.path.join(config["OUTPUT_PATH"].rstr(), "lat"))
 
     # print dictionary for debugging
     logging.info("%s", "\n".join(["%s = %s" % (k, v) for k, v in config.iteritems()]))
@@ -288,6 +284,53 @@ def create_asr_directory_emitter(target, source, env):
     return new_targets, new_sources
 
 
+def create_small_asr_directory(target, source, env):
+
+    # the first three sources are the original configuration dictionaries
+    files, directories, parameters = [x.read() for x in source[:3]]
+    files = {k : env.File(v) for k, v in files.iteritems()}
+    directories = {k : env.Dir(v) for k, v in directories.iteritems()}
+
+    # the remainder are template files
+    templates = source[3:]
+
+    # create one big configuration dictionary
+    config = {k : v for k, v in sum([list(y) for y in [files.iteritems(), directories.iteritems(), parameters.iteritems()]], [])}
+    config["GRAPH_OFILE"] = env.File(os.path.join(config["OUTPUT_PATH"].rstr(), "dnet.bin.gz"))
+    config["CTM_OPATH"] = env.Dir(os.path.join(config["OUTPUT_PATH"].rstr(), "ctm"))
+    config["LAT_OPATH"] = env.Dir(os.path.join(config["OUTPUT_PATH"].rstr(), "lat"))
+
+    # print dictionary for debugging
+    logging.debug("%s", "\n".join(["%s = %s" % (k, v) for k, v in config.iteritems()]))
+
+    # perform substitution on each template file, write to appropriate location
+    for template, final in zip(templates, target):
+        with open(template.rstr()) as ifd, open(final.rstr(), "w") as ofd:
+            ofd.write(scons_subst(ifd.read(), env=env, lvars=config))
+
+    return None
+
+def create_small_asr_directory_emitter(target, source, env):
+
+    # start with three configuration dictionaries
+    files, directories, parameters = [x.read() for x in source]
+
+    # create a dependency on each file passed in
+    for name, path in files.iteritems():
+        env.Depends(target, path)
+
+    # all templates
+    dlatsa = ["cfg.py", "construct.py", "test.py"]
+
+    # new list of targets
+    new_targets = [os.path.join(directories["CONFIGURATION_PATH"], x) for x in dlatsa]
+ 
+    # new list of sources
+    new_sources = [env.Value(files), env.Value(directories), env.Value(parameters)] + \
+        [os.path.join("data", "%s.dlatSA" % x) for x in dlatsa]
+
+    return new_targets, new_sources
+
 def TOOLS_ADD(env):
     env.Append(BUILDERS = {"IBMTrainLanguageModel" : Builder(generator=ibm_train_language_model),
                            "BaseDictionary" : Builder(generator=make_base_dict),
@@ -302,6 +345,7 @@ def TOOLS_ADD(env):
                            "TranscriptVocabulary" : Builder(action=transcript_vocabulary),
                            "TrainPronunciationModel" : Builder(action=train_pronunciation_model),
                            "CreateASRDirectory" : Builder(action=create_asr_directory, emitter=create_asr_directory_emitter),
+                           "CreateSmallASRDirectory" : Builder(action=create_small_asr_directory, emitter=create_small_asr_directory_emitter),
 
                            "CollectText" : Builder(action=collect_text),
                            #"BuildCounts" : Builder(action="CountNGram -n 4 ${SOURCE[0]} ${SOURCE[1]} lm-train"),
