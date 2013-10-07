@@ -19,7 +19,7 @@ from optparse import OptionParser
 # ------------------------------------------
 
 from attila import *
-import vcfg as cfg
+import cfg as cfg
 import aio, train, misc, dispatcher
 
 # ------------------------------------------

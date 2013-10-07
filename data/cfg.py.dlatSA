@@ -1,70 +1,79 @@
-# -------------------------------------------------
+# --------------------------------------------------------------------
 # Attila Speech Recognition Toolkit
 #
-# Module  : CD-VTL Decoding Configuration
+# Module  : MLP
 # Author  : Hagen Soltau
-# Date    : 03/08/2004
-# $Id: cfg.py,v 1.3 2010/09/23 15:45:00 hsoltau Exp $
-#
-# -------------------------------------------------
+# Date    : 08/02/2012
+# $Id: cfg.py,v 1.3 2010/09/23 15:57:34 hsoltau Exp $
+# --------------------------------------------------------------------
 
-execfile('${GCFG_FILE.abspath}')
+from attila import *
+import dbase, frontend, misc, nnet
 
-import frontend, dbase
-import os.path
+# error handling
+misc.errorMax = 150000
+errorHandler.setVerbosity(errorHandler.INFO_LOG)
 
 # dbase
-dbFile = '${DATABASE.abspath}'
-db     = dbase.DB(dirFn=dbase.getFlatDir)
+# change dbFile if you want to run on a subset of the data
+# see ../segment/README for details
+dbFile = '${DATABASE_FILE.abspath}'
+db            = dbase.DB(dirFn=dbase.getFlatDir)
+useDispatcher = False
+
+# models - fixed
+psFile        = '${PHONE_FILE.abspath}'
+pssFile        = '${PHONE_SET_FILE.abspath}'
+tagsFile        = '${TAGS_FILE.abspath}'
+treeFile  = '${TREE_FILE.abspath}'
+priors        = '${PRIORS_FILE.abspath}'
+topoFile        = '${TOPO_FILE.abspath}'
+ttreeFile        = '${TOPO_TREE_FILE.abspath}'
+
+# models - depend on the vocabulary
+dictFile        = '${DICTIONARY_FILE.abspath}'
+vocab        = '${VOCABULARY_FILE.abspath}'
+lm        = '${LANGUAGE_MODEL_FILE.abspath}'
+graph        = '${GRAPH_OFILE.abspath}'
 
 # frontend
+samplingrate  = ${SAMPLING_RATE}
+featuretype   = '${FEATURE_TYPE}'
+
+# Change pcmDir to reflect where you put the audio files.
+pcmDir        = '${PCM_PATH.abspath}'
+melFile       = '${MEL_FILE.abspath}'
+warpFile      = '${WARP_FILE.abspath}'
+ldaFile       = '${LDA_FILE.abspath}'
+
+
 fe = frontend.FeCombo(db,samplingrate,featuretype)
-fe.end            = fe.fmmi
+fe.ctx2           = frontend.FeCTX([fe.fmllr])
+fe.ctx2.spliceN   = 4
+fe.ctx2.db        = db
+fe.end            = fe.ctx2
 fe.pcm.pcmDir     = pcmDir
+fe.norm.normDir   = '${CMS_PATH.abspath}'
+fe.fmllr.fmllrDir = '${FMLLR_PATH.abspath}'
 fe.norm.normMode  = 1
-fe.norm.normDir   = os.path.join(outputDir, 'dlatSA/cms/')
-fe.fmllr.fmllrDir = os.path.join(outputDir, 'dlatSA/fmllr/')
-warpFile          = os.path.join(outputDir, 'warp.lst')
-ldaFile           = os.path.join(rootDir, 'buildVTL/param/30.mat')
-ictx              = 8
-octx              = 4
 
-# ML acoustic models
-paramDir  = os.path.join(rootDir, 'buildFSA/param/')
-treeFile  = os.path.join(paramDir, 'tree')
-gsAFile   = os.path.join(paramDir, '30.gs')
-msAFile   = os.path.join(paramDir, '30.ms')
+# models
+layerL = []
+for i in range(6):
+    l = nnet.LayerWeights()
+    l.name = 'layer%d'%i
+    l.isTrainable = False
+    l.initWeightFile = '${MODEL_PATH.abspath}/layer%d' % i
+    layerL.append(l)
+    if i < 5:
+        l = nnet.LayerSigmoid()
+        l.name = 'layer%d-nonl' % i
+        layerL.append(l)
+layerL[-1].matrixOut = True
 
-# fMMI acoustic models
-paramDir  = os.path.join(rootDir, 'buildBMMI/ftrain/param/')
-trfsFile  = os.path.join(paramDir, '512.trfs')
-trFile    = os.path.join(paramDir, '4.tr')
-ctxFile   = os.path.join(paramDir, '4.ctx')
+nn    = nnet.NeuralNet(layerL=layerL,depL=[fe.end])
+nn.db = db
 
-# bMMI acoustic models
-paramDir  = os.path.join(rootDir, 'buildBMMI/mtrain/param/')
-gsFile    = os.path.join(paramDir, '4.gs')
-msFile    = os.path.join(paramDir, '4.ms')
-fsFile    = os.path.join(paramDir, '4.fs')
-
-# decoding graph
-dictFile  = '${DICTIONARY.abspath}'
-vocab     = '${VOCABULARY.abspath}'
-lm        = '${LANGUAGE_MODEL.abspath}'
-graph     = os.path.join(outputDir, 'dlatSA/param/dnet.bin.gz')
-
-# pruning
-selectMaxL = '[256]'
-
-# decoding output
-ctmDir    = os.path.join(outputDir, 'dlatSA/ctm/')
-latDir    = os.path.join(outputDir, 'dlatSA/lat/')
-
-# consensus output
-cctmDir   = os.path.join(outputDir, 'dlatSA/cctm/')
-consDir   = os.path.join(outputDir, 'dlatSA/cons/')
-
-# mllr
-minCount  = 3000
-depthN    = 5
-txtDir    = os.path.join(outputDir, 'dlatSI/cons/')
+# output
+ctmDir = '${OUTPUT_PATH.abspath}/ctm/'
+latDir = '${OUTPUT_PATH.abspath}/lat/'

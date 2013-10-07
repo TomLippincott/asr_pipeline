@@ -228,42 +228,65 @@ def collect_text(target, source, env):
 
 
 def create_asr_directory(target, source, env):
-    language_model, vocabulary, dictionary, database, args = source[-5:]
-    gcfg = target[0]
-    args = args.read()
-    vals = {
-        "LANGUAGE_MODEL" : language_model,
-        "PCM_DIR" : args["PCM_DIR"],
-        "ROOT_DIR" : args["IBM_PATH"],
-        "OUTPUT_DIR" : args["OUTPUT_DIR"],
-        "VOCABULARY" : vocabulary,
-        "DICTIONARY" : dictionary,
-        "DATABASE" : database,
-        "GCFG_FILE" : gcfg,
-        "MAX_ERROR" : 15000,
-        "USE_DISPATCHER" : False,
-        }
-    for template, final in zip(source, target):
+
+    # the first three sources are the original configuration dictionaries
+    files, directories, parameters = [x.read() for x in source[:3]]
+    files = {k : env.File(v) for k, v in files.iteritems()}
+    directories = {k : env.Dir(v) for k, v in directories.iteritems()}
+
+    # the remainder are template files
+    templates = source[3:]
+
+    # create one big configuration dictionary
+    config = {k : v for k, v in sum([list(y) for y in [files.iteritems(), directories.iteritems(), parameters.iteritems()]], [])}
+    config["GCFG_FILE"] = target[0]
+    config["DLATSI_GRAPH_OFILE"] = target[0]
+    config["DLATSI_CTM_OPATH"] = target[0]
+    config["DLATSI_LAT_OPATH"] = target[0]
+    config["DLATSI_CTTM_OPATH"] = target[0]
+    config["DLATSI_CONS_OPATH"] = target[0]
+    
+
+    # print dictionary for debugging
+    logging.info("%s", "\n".join(["%s = %s" % (k, v) for k, v in config.iteritems()]))
+
+    # perform substitution on each template file, write to appropriate location
+    for template, final in zip(templates, target):
         with open(template.rstr()) as ifd, open(final.rstr(), "w") as ofd:
-            ofd.write(scons_subst(ifd.read(), env=env, lvars=vals))
+            ofd.write(scons_subst(ifd.read(), env=env, lvars=config))
+
+    # write a PBS submission script for the entire experiment
+
     return None
 
+
 def create_asr_directory_emitter(target, source, env):
-    language_model, vocabulary, dictionary, database, data_path, ibm_path, output_path = source[0:7]
-    if len(source) == 8:
-        args = source[-1].read()
-    else:
-        args = {}
-    args["PCM_DIR"] = args.get("PCM_DIR", data_path.rstr())
-    args["IBM_PATH"] = args.get("IBM_PATH", ibm_path.rstr())
-    args["OUTPUT_DIR"] = args.get("OUTPUT_PATH", output_path.rstr())
-    base = target[0].rstr()
+
+    # start with three configuration dictionaries
+    files, directories, parameters = [x.read() for x in source]
+
+    # create a dependency on each file passed in
+    for name, path in files.iteritems():
+        env.Depends(target, path)
+
+    # all templates (except for gcfg.py)
+    input = ["gcfg.py"]
     dlatsi = ["cfg.py", "construct.py", "test.py", "consensus.py"]
     dlatsa = ["cfg.py", "construct.py", "vtln.py", "fmllr.py", "test.py", "test_cleanup.py", "consensus.py", "vcfg.py", "cat.py"]
 
-    new_sources = ["data/gcfg.py.input"] + ["data/%s.dlatSI" % x for x in dlatsi] + ["data/%s.dlatSA" % x for x in dlatsa] + ["data/gcfg.py.input"] + source[0:4] + [env.Value(args)]
-    new_targets = [os.path.join(base, "input", "gcfg.py")] + [os.path.join(base, "dlatSI", x) for x in dlatsi] + [os.path.join(base, "dlatSA", x) for x in dlatsa]
+    # new list of targets
+    new_targets = [os.path.join(directories["CONFIGURATION_PATH"], "input/gcfg.py")] + \
+        [os.path.join(directories["CONFIGURATION_PATH"], "dlatSI", x) for x in dlatsi] + \
+        [os.path.join(directories["CONFIGURATION_PATH"], "dlatSA", x) for x in dlatsa]
+ 
+    # new list of sources
+    new_sources = [env.Value(files), env.Value(directories), env.Value(parameters)] + \
+        [os.path.join("data", "gcfg.py.input")] + \
+        [os.path.join("data", "%s.dlatSI" % x) for x in dlatsi] + \
+        [os.path.join("data", "%s.dlatSA" % x) for x in dlatsa]
+
     return new_targets, new_sources
+
 
 def TOOLS_ADD(env):
     env.Append(BUILDERS = {"IBMTrainLanguageModel" : Builder(generator=ibm_train_language_model),

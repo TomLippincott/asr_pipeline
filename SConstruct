@@ -79,57 +79,70 @@ env['PRINT_CMD_LINE_FUNC'] = print_cmd_line
 #
 for name, experiment in env["EXPERIMENTS"].iteritems():
 
-    topline_text = env.CollectText("work/topline_text.txt", [env.Dir(x) for x in glob(os.path.join(experiment["DATA_PATH"], "*/*/transcription"))])
-
-
-    for mass in [.01, .05, .1, .2, .4, .8]:
-        base = os.path.join("work", "%s_midline_%f" % (name, mass))
-        midline_lm, midline_vocab, midline_dict = env.AugmentLanguageModel([os.path.join(base, x) for x in ["midline_lm.arpabo.gz", "midline_vocab.txt", "midline_dict.txt"]],
-                                                                           [os.path.join(experiment["IBM_PATH"], "buildLM/lm.3gm.arpabo.gz"),
-                                                                            os.path.join(experiment["IBM_PATH"], "input/dict.test"),
-                                                                            os.path.join(experiment["IBM_PATH"], "input/dict.train"),
-                                                                            Value(mass),
-                                                                            ])
-    
-        midline = env.CreateASRDirectory(Dir(base),
-                                         [midline_lm,
-                                          midline_vocab,
-                                          midline_dict,
-                                          os.path.join(experiment["IBM_PATH"], "segment", "db", experiment["DATABASE"]),
-                                          Dir(experiment["DATA_PATH"]),
-                                          Dir(experiment["IBM_PATH"]),
-                                          Dir(os.path.join(experiment["OUTPUT_PATH"], "%s_midline_%f" % (name, mass)))
-                                          ])
-
-
-
-
-    model1_50k_lm, model1_50k_vocab, model1_50k_dict = env.AugmentLanguageModel(["work/model1_50k_lm.arpabo.gz", "work/model1_50k_vocab.txt", "work/model1_50k_dict.txt"],
-                                                                                [os.path.join(experiment["IBM_PATH"], "buildLM/lm.3gm.arpabo.gz"),
-                                                                                 os.path.join(experiment["IBM_PATH"], "input/dict.test"),
-                                                                                 "data/model1_50k.txt",
-                                                                                 Value(.1),
-                                                                                 ])
+    #topline_text = env.CollectText("work/topline_text.txt", [env.Dir(x) for x in glob(os.path.join(experiment["DATA_PATH"], "*/*/transcription"))])
+    #database_file, data_path, output_path, language_model_file, dictionary_file = [experiment[x] for x in ["DATABASE_FILE", "DATA_PATH", "OUTPUT_PATH", "LANGUAGE_MODEL_FILE", "DICTIONARY_FILE"]]
 
     baseline = env.CreateASRDirectory(Dir(os.path.join("work", "%s_baseline" % name)),
-                                      [os.path.join(experiment["IBM_PATH"], "buildLM", "lm.3gm.arpabo.gz"),
-                                       os.path.join(experiment["IBM_PATH"], "input", "vocab"),
-                                       os.path.join(experiment["IBM_PATH"], "input", "dict.test"),
-                                       os.path.join(experiment["IBM_PATH"], "segment", "db", experiment["DATABASE"]),
-                                       Dir(experiment["DATA_PATH"]),
-                                       Dir(experiment["IBM_PATH"]),
-                                       Dir(os.path.join(experiment["OUTPUT_PATH"], "baseline"))
+                                      [env.Value(experiment["FILES"]),
+                                       env.Value(experiment["DIRECTORIES"]),
+                                       env.Value(experiment["PARAMETERS"]),
                                        ])
+                                      #database_file,
+                                      # language_model_file,
+                                      # dictionary_file,
+                                       
+                                      # mel
+                                      # ps
+                                      # pss
+                                      # tags
+                                      # tree
+                                       # topo
+                                      # topotree
+                                      #Dir(experiment["DATA_PATH"]),
+                                      #Dir(experiment["IBM_PATH"]),
+                                      #Dir(os.path.join(experiment["OUTPUT_PATH"], "baseline"))
+                                      #)
 
-    model1_50k = env.CreateASRDirectory(Dir(os.path.join("work", "%s_model1_50k" % name)),
-                                        [model1_50k_lm,
-                                         model1_50k_vocab,
-                                         model1_50k_dict,
-                                         os.path.join(experiment["IBM_PATH"], "segment", "db", experiment["DATABASE"]),
-                                         Dir(experiment["DATA_PATH"]),
-                                         Dir(experiment["IBM_PATH"]),
-                                         Dir(os.path.join(experiment["OUTPUT_PATH"], "model1_50k"))
-                                         ])
+
+    # for mass in [.01, .05, .1, .2, .4, .8]:
+    #     base = os.path.join("work", "%s_midline_%f" % (name, mass))
+    #     midline_lm, midline_vocab, midline_dict = env.AugmentLanguageModel([os.path.join(base, x) for x in ["midline_lm.arpabo.gz", "midline_vocab.txt", "midline_dict.txt"]],
+    #                                                                        [os.path.join(experiment["IBM_PATH"], "buildLM/lm.3gm.arpabo.gz"),
+    #                                                                         os.path.join(experiment["IBM_PATH"], "input/dict.test"),
+    #                                                                         os.path.join(experiment["IBM_PATH"], "input/dict.train"),
+    #                                                                         Value(mass),
+    #                                                                         ])
+    
+    #     midline = env.CreateASRDirectory(Dir(base),
+    #                                      [midline_lm,
+    #                                       midline_vocab,
+    #                                       midline_dict,
+    #                                       os.path.join(experiment["IBM_PATH"], "segment", "db", experiment["DATABASE"]),
+    #                                       Dir(experiment["DATA_PATH"]),
+    #                                       Dir(experiment["IBM_PATH"]),
+    #                                       Dir(os.path.join(experiment["OUTPUT_PATH"], "%s_midline_%f" % (name, mass)))
+    #                                       ])
+
+
+
+
+    # model1_50k_lm, model1_50k_vocab, model1_50k_dict = env.AugmentLanguageModel(["work/model1_50k_lm.arpabo.gz", "work/model1_50k_vocab.txt", "work/model1_50k_dict.txt"],
+    #                                                                             [os.path.join(experiment["IBM_PATH"], "buildLM/lm.3gm.arpabo.gz"),
+    #                                                                              os.path.join(experiment["IBM_PATH"], "input/dict.test"),
+    #                                                                              "data/model1_50k.txt",
+    #                                                                              Value(.1),
+    #                                                                              ])
+
+
+    # model1_50k = env.CreateASRDirectory(Dir(os.path.join("work", "%s_model1_50k" % name)),
+    #                                     [model1_50k_lm,
+    #                                      model1_50k_vocab,
+    #                                      model1_50k_dict,
+    #                                      os.path.join(experiment["IBM_PATH"], "segment", "db", experiment["DATABASE"]),
+    #                                      Dir(experiment["DATA_PATH"]),
+    #                                      Dir(experiment["IBM_PATH"]),
+    #                                      Dir(os.path.join(experiment["OUTPUT_PATH"], "model1_50k"))
+    #                                      ])
 
     #pronunciation_model = env.TrainPronunciationModel("work/pronunciation_model_1.txt", ["input/dict.train", Value(5)])
     #for i in range(2, 6):

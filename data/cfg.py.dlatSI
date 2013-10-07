@@ -16,7 +16,7 @@ execfile('${GCFG_FILE.abspath}')
 import frontend, dbase
 
 # dbase
-dbFile = '${DATABASE.abspath}'
+dbFile = '${DATABASE_FILE.abspath}'
 db     = dbase.DB(dirFn=dbase.getFlatDir)
 
 # frontend
@@ -25,42 +25,53 @@ fe.fmmi.depL      = [ fe.lda ]
 fe.end            = fe.fmmi
 fe.pcm.pcmDir     = pcmDir
 fe.norm.normMode  = 0
-fe.norm.normDir   = os.path.join(rootDir, 'dtestCD3/cms/')
+#fe.norm.normDir   = os.path.join(rootDir, 'dtestCD3/cms/')
+fe.norm.normDir   = '${NORM_PATH.abspath}'
 ictx              = 8
 octx              = 4
 
 # ML acoustic models
-paramDir  = os.path.join(rootDir, 'buildCD3/param/')
-ldaFile   = os.path.join(paramDir, '30.mat')
-treeFile  = os.path.join(paramDir, 'tree')
-gsAFile   = os.path.join(paramDir, '30.gs')
-msAFile   = os.path.join(paramDir, '30.ms')
+# paramDir  = os.path.join(rootDir, 'buildCD3/param/')
+# ldaFile   = os.path.join(paramDir, '30.mat')
+# treeFile  = os.path.join(paramDir, 'tree')
+# gsAFile   = os.path.join(paramDir, '30.gs')
+# msAFile   = os.path.join(paramDir, '30.ms')
+ldaFile   = '${LDA_FILE.abspath}'
+treeFile  = '${TREE_FILE.abspath}'
+gsAFile   = '${GS_A_FILE.abspath}'
+msAFile   = '${MS_A_FILE.abspath}'
 
 # fMMI acoustic models
-paramDir  = os.path.join(rootDir, 'buildBMMI.SI.2/ftrain/param/')
-trfsFile  = os.path.join(paramDir, '512.trfs')
-trFile    = os.path.join(paramDir, '4.tr')
-ctxFile   = os.path.join(paramDir, '4.ctx')
+#paramDir  = os.path.join(rootDir, 'buildBMMI.SI.2/ftrain/param/')
+#trfsFile  = os.path.join(paramDir, '512.trfs')
+#trFile    = os.path.join(paramDir, '4.tr')
+#ctxFile   = os.path.join(paramDir, '4.ctx')
 
 # bMMI acoustic models
-paramDir  = os.path.join(rootDir, 'buildBMMI.SI.2/mtrain/param/')
-gsFile    = os.path.join(paramDir, '4.gs')
-msFile    = os.path.join(paramDir, '4.ms')
-fsFile    = os.path.join(paramDir, '4.fs')
+#paramDir  = os.path.join(rootDir, 'buildBMMI.SI.2/mtrain/param/')
+#gsFile    = os.path.join(paramDir, '4.gs')
+#msFile    = os.path.join(paramDir, '4.ms')
+#fsFile    = os.path.join(paramDir, '4.fs')
 
 # decoding graph
 dictFile  = '${DICTIONARY.abspath}'
 vocab     = '${VOCABULARY.abspath}'
 lm        = '${LANGUAGE_MODEL.abspath}'
-graph     = os.path.join(outputDir, 'dlatSI/param/dnet.bin.gz')
+#graph     = os.path.join(outputDir, 'dlatSI/param/dnet.bin.gz')
+graph = '${DLATSI_GRAPH_OFILE}'
+
 
 # pruning
 selectMaxL = '[256]'
 
 # decoding output
-ctmDir    = os.path.join(outputDir, 'dlatSI/ctm/')
-latDir    = os.path.join(outputDir, 'dlatSI/lat/')
+#ctmDir    = os.path.join(outputDir, 'dlatSI/ctm/')
+#latDir    = os.path.join(outputDir, 'dlatSI/lat/')
+ctmDir    = '${CTM_OPATH}'
+latDir    = '${LAT_OPATH}'
 
 # consensus output
-cctmDir   = os.path.join(outputDir, 'dlatSI/cctm/')
-consDir   = os.path.join(outputDir, 'dlatSI/cons/')
+#cctmDir   = os.path.join(outputDir, 'dlatSI/cctm/')
+#consDir   = os.path.join(outputDir, 'dlatSI/cons/')
+cctmDir   = '${CTTM_OPATH}'
+consDir   = '${CONS_OPATH}'
