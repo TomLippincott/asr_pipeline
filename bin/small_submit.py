@@ -23,6 +23,7 @@ parser.add_argument("-n", "--number", dest="number", type=int, default=10)
 parser.add_argument("-c", "--commit", dest="commit", default=False, action="store_true")
 parser.add_argument("-H", "--hold", dest="hold", default=False, action="store_true")
 parser.add_argument("-D", "--debug", dest="debug", default=False, action="store_true")
+parser.add_argument("-a", "--acoustic_weight", dest="acw", default=0.13, type=float)
 options = parser.parse_args()
 
 if options.debug:    
@@ -128,7 +129,7 @@ for i in range(options.number):
     dlatsa_job = Job(name="dlatsa_j%d_n%d" % (i, options.number),
                      dependencies=dlatsa_construct_jobs,
                      resources={},
-                     commands=["%s/tools/attila/attila test.py -w 0.060 -n %s -j %s" % (options.attila_path, options.number, i)],
+                     commands=["%s/tools/attila/attila test.py -w %f -n %s -j %s" % (options.attila_path, options.acw, options.number, i)],
                      #"%s/tools/attila/attila consensus.py -n %s -j %s" % (options.attila_path, options.number, i)],
                      path=options.config_path,
                      stdout_path=options.stdout,

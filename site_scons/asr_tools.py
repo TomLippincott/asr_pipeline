@@ -167,6 +167,25 @@ def augment_language_model(target, source, env):
 
     return None
 
+def augment_language_model_emitter(target, source, env):
+    """
+    Input: either a single dictionary, or something else
+    Output: given a dictionary, set up the appropriate dependencies, otherwise pass through
+    """
+    # if there's more than one source, or it isn't a Python value, don't modify anything
+    if len(source) != 1:
+        return target, source
+    else:
+        try:
+            config = source[0].read()
+        except:
+            return target, source
+        base_path = env.get("BASE", "work")
+        new_targets = [os.path.join(base_path, x % (config["NAME"])) for x in ["%s_lm.arpabo.gz", "%s_vocab.txt", "%s_dict.txt"]]
+        new_sources = [config[x] for x in ["OLD_LANGUAGE_MODEL_FILE", "OLD_DICTIONARY_FILE", "NEW_VOCABULARY_FILE"]] + [env.Value(config["PROBABILITY_MASS"])]
+        return new_targets, new_sources
+
+
 def augment_language_model_from_babel(target, source, env):
     """
     """
@@ -337,7 +356,7 @@ def TOOLS_ADD(env):
                            "CollectRawText" : Builder(generator=collect_raw_text),
                            "Experiment" : Builder(action=experiment, emitter=experiment_emitter),
                            "MissingVocabulary" : Builder(action=missing_vocabulary),
-                           "AugmentLanguageModel" : Builder(action=augment_language_model),
+                           "AugmentLanguageModel" : Builder(action=augment_language_model, emitter=augment_language_model_emitter),
 
                            # add_words old_lm new_words new_lm new_vocab new_dict
                            #"AugmentLanguageModel" : Builder(action="${ADD_WORDS} ${SOURCES[0]} ${SOURCES[1]} ${TARGETS[0]} ${TARGETS[1]} ${TARGETS[2]}"),

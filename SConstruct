@@ -24,6 +24,7 @@ vars.AddVariables(
     ("OVERLAY", "", None),
     ("LIBRARY_OVERLAY", "", "${OVERLAY}/lib:${OVERLAY}/lib64"),
     ("EXPERIMENTS", "", {}),
+    ("LANGUAGE_MODELS", "", {}),
     ("LOG_LEVEL", "", logging.INFO),
     ("LOG_DESTINATION", "", sys.stdout),
     )
@@ -71,22 +72,53 @@ env['PRINT_CMD_LINE_FUNC'] = print_cmd_line
 # """ % (",".join(undefined))
 #     env.Exit()
 
+#
+# build all language models
+#
+language_models = {}
+for name, config in env["LANGUAGE_MODELS"].iteritems():
+    language_models[name] = env.AugmentLanguageModel([], env.Value(config))
 
+    #env.AugmentLanguageModel(["work/model1_50k_lm.arpabo.gz", "work/model1_50k_vocab.txt", "work/model1_50k_dict.txt"],
+    #                                                                            [experiment["FILES"]["LANGUAGE_MODEL_FILE"],
+    #                                                                             experiment["FILES"]["DICTIONARY_FILE"],
+    #                                                                             "data/model1_50k.txt",
+    #                                                                             Value(.1),
+    #                                                                             ])
+    #topline_text = env.CollectText(os.path.join(base_path, "all_transcripts.txt"), [env.Dir(x) for x in glob(os.path.join(experiment["DIRECTORIES"]["PCM_PATH"], "*/*/transcription"))])
+    #model1_50k_lm, model1_50k_vocab, model1_50k_dict = 
+    #env.AugmentLanguageModel(["work/model1_50k_lm.arpabo.gz", "work/model1_50k_vocab.txt", "work/model1_50k_dict.txt"],
+    #                                                                            [experiment["FILES"]["LANGUAGE_MODEL_FILE"],
+    #                                                                             experiment["FILES"]["DICTIONARY_FILE"],
+    #                                                                             "data/model1_50k.txt",
+    #                                                                             Value(.1),
+    #                                                                             ])
 
 
 #
 # run all the experiments in EXPERIMENTS (defined in custom.py)
 #
 for name, experiment in env["EXPERIMENTS"].iteritems():
+    base_path = experiment["DIRECTORIES"]["CONFIGURATION_PATH"]
 
-    #topline_text = env.CollectText("work/topline_text.txt", [env.Dir(x) for x in glob(os.path.join(experiment["DATA_PATH"], "*/*/transcription"))])
     #database_file, data_path, output_path, language_model_file, dictionary_file = [experiment[x] for x in ["DATABASE_FILE", "DATA_PATH", "OUTPUT_PATH", "LANGUAGE_MODEL_FILE", "DICTIONARY_FILE"]]
-
-    baseline = env.CreateSmallASRDirectory(Dir(os.path.join("work", "%s_baseline" % name)),
+    # "DICTIONARY_FILE", "LANGUAGE_MODEL_FILE", "VOCABULARY_FILE"
+    baseline = env.CreateSmallASRDirectory(Dir(os.path.join(base_path, "baseline")),
                                            [env.Value(experiment["FILES"]),
                                             env.Value(experiment["DIRECTORIES"]),
                                             env.Value(experiment["PARAMETERS"]),
                                             ])
+
+    #model1_50k_experiment = experiment
+    #model1_50k_experiment["FILES"]["LANGUAGE_MODEL_FILE"] = model1_50k_lm.rstr()
+    #model1_50k_experiment["FILES"]["VOCABULARY_FILE"] = model1_50k_vocab.rstr()
+    #model1_50k_experiment["FILES"]["DICTIONARY_FILE"] = model1_50k_dict.rstr()
+    #model1_50k_experiment["DIRECTORIES"]["OUTPUT_PATH"] = ""
+    # baseline = env.CreateSmallASRDirectory(Dir(os.path.join(base_path, "baseline")),
+    #                                        [env.Value(model1_50k_experiment["FILES"]),
+    #                                         env.Value(model1_50k_experiment["DIRECTORIES"]),
+    #                                         env.Value(model1_50k_experiment["PARAMETERS"]),
+    #                                         ])
                                       #database_file,
                                       # language_model_file,
                                       # dictionary_file,
