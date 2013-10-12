@@ -182,7 +182,7 @@ def augment_language_model_emitter(target, source, env):
             return target, source
         base_path = env.get("BASE", "work")
         new_targets = [os.path.join(base_path, x % (config["NAME"])) for x in ["%s_lm.arpabo.gz", "%s_vocab.txt", "%s_dict.txt"]]
-        new_sources = [config[x] for x in ["OLD_LANGUAGE_MODEL_FILE", "OLD_DICTIONARY_FILE", "NEW_VOCABULARY_FILE"]] + [env.Value(config["PROBABILITY_MASS"])]
+        new_sources = [config[x] for x in ["OLD_LANGUAGE_MODEL_FILE", "OLD_DICTIONARY_FILE", "NEW_DICTIONARY_FILE"]] + [env.Value(config["PROBABILITY_MASS"])]
         return new_targets, new_sources
 
 

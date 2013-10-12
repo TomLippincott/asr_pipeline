@@ -77,7 +77,9 @@ env['PRINT_CMD_LINE_FUNC'] = print_cmd_line
 #
 language_models = {}
 for name, config in env["LANGUAGE_MODELS"].iteritems():
-    language_models[name] = env.AugmentLanguageModel([], env.Value(config))
+    full_config = {"NAME" : name}
+    full_config.update(config)
+    language_models[name] = env.AugmentLanguageModel([], env.Value(full_config))
 
     #env.AugmentLanguageModel(["work/model1_50k_lm.arpabo.gz", "work/model1_50k_vocab.txt", "work/model1_50k_dict.txt"],
     #                                                                            [experiment["FILES"]["LANGUAGE_MODEL_FILE"],
@@ -85,7 +87,7 @@ for name, config in env["LANGUAGE_MODELS"].iteritems():
     #                                                                             "data/model1_50k.txt",
     #                                                                             Value(.1),
     #                                                                             ])
-    #topline_text = env.CollectText(os.path.join(base_path, "all_transcripts.txt"), [env.Dir(x) for x in glob(os.path.join(experiment["DIRECTORIES"]["PCM_PATH"], "*/*/transcription"))])
+    #
     #model1_50k_lm, model1_50k_vocab, model1_50k_dict = 
     #env.AugmentLanguageModel(["work/model1_50k_lm.arpabo.gz", "work/model1_50k_vocab.txt", "work/model1_50k_dict.txt"],
     #                                                                            [experiment["FILES"]["LANGUAGE_MODEL_FILE"],
@@ -100,6 +102,9 @@ for name, config in env["LANGUAGE_MODELS"].iteritems():
 #
 for name, experiment in env["EXPERIMENTS"].iteritems():
     base_path = experiment["DIRECTORIES"]["CONFIGURATION_PATH"]
+
+    #topline_text = env.CollectText(os.path.join(base_path, "all_transcripts.txt"), [env.Dir(x) for x in glob(os.path.join(experiment["DIRECTORIES"]["PCM_PATH"], "*/*/transcription"))])
+    #all_vocab = env.TranscriptVocabulary(os.path.join(base_path, "all_vocab.txt"), topline_text)
 
     #database_file, data_path, output_path, language_model_file, dictionary_file = [experiment[x] for x in ["DATABASE_FILE", "DATA_PATH", "OUTPUT_PATH", "LANGUAGE_MODEL_FILE", "DICTIONARY_FILE"]]
     # "DICTIONARY_FILE", "LANGUAGE_MODEL_FILE", "VOCABULARY_FILE"
