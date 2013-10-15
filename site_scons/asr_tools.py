@@ -16,6 +16,12 @@ import shlex
 import time
 import shutil
 import tempfile
+import arpabo
+import codecs
+import locale
+
+
+
 
 def meta_open(file_name, mode="r"):
     """
@@ -41,54 +47,130 @@ def run_command(cmd, env={}, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stde
     return out, err, process.returncode == 0
 
 
-def experiment(target, source, env):
+def dictionary_to_vocabulary(target, source, env):
+    with meta_open(source[0].rstr()) as ifd:
+        d = arpabo.Dictionary(ifd)
+    with meta_open(target[0].rstr(), "w") as ofd:
+        ofd.write(d.format_vocabulary())
     return None
 
-def experiment_emitter(target, source, env):
-    new_targets = [
-        os.path.join(target[0].rstr(), "gcfg.py"),
-        os.path.join(target[0].rstr(), "dlatSI", "cfg.py"),
-        os.path.join(target[0].rstr(), "dlatSA", "cfg.py"),
-        ]
-    return new_targets, source
+def appen_to_attila(target, source, env):
+    # set the locale for sorting and getting consistent case
+    locale.setlocale(locale.LC_ALL, source[-1].read())
 
-#
-# PREPARE
-#
+    # convert BABEL SAMPA pronunciations to attila format
+    #
+    # In this version the primary stress ("), secondary stress (%),
+    # syllable boundary (.), and word boundary within compound (#) marks
+    # are simply stripped out.  We may want to try including this
+    # information in the form of tags in some variants.
+    #
+    def attilapron(u, pnsp):
+        skipD = frozenset(['"', '%', '.', '#'])
+        phoneL = []
+        for c in u.encode('utf-8').split():
+            if c in skipD:
+                continue
+            #c = cfg.p2p.get(c,c) TODO
+            pnsp.add(c)
+            phoneL.append(c)
+        phoneL.append('[ wb ]')
+        if len(phoneL) > 2:
+            phoneL.insert(1, '[ wb ]')
+        return ' '.join(phoneL)
 
-def make_base_dict(target, source, env, for_signature):
-    locale, skip_roman = [x.read() for x in source[0:2]]
-    if skip_roman:
-        skip_roman = " -r "
-    else:
-        skip_roman = ""
-    lexicons = " ".join(["-i %s" % x.rstr() for x in source[2:]])
-    return "${ATILLA_INTERPRETER} bin/makeBaseDict.py -l %s %s %s -d ${TARGETS[0]} -p ${TARGETS[1]} -t ${TARGETS[2]}" % (locale, skip_roman, lexicons)
+    # Pronunciations for the BABEL standard tags, silence, and the start
+    # and end tokens
+    nonlex = [ ['<UNINTELLIGIBLE>', set(['REJ [ wb ]'])],
+               ['<FOREIGN>',   set(['REJ [ wb ]'])],
+               ['<LAUGH>',     set(['VN [ wb ]'])],
+               ['<COUGH>',     set(['VN [ wb ]'])],
+               ['<BREATH>',    set(['NS [ wb ]', 'VN [ wb ]'])],
+               ['<LIPSMACK>',  set(['NS [ wb ]'])],
+               ['<CLICK>',     set(['NS [ wb ]'])],
+               ['<RING>',      set(['NS [ wb ]'])],
+               ['<DTMF>',      set(['NS [ wb ]'])],
+               ['<INT>',       set(['NS [ wb ]'])],
+               ['<NO-SPEECH>', set(['SIL [ wb ]'])],
+               ['~SIL',        set(['SIL [ wb ]'])], 
+               ['<s>',         set(['SIL [ wb ]'])],
+               ['</s>',        set(['SIL [ wb ]'])], ]
 
-def collect_raw_text(target, source, env, for_signature):
-    return "${ATILLA_INTERPRETER} bin/collectRawText.py -o ${TARGET} ${SOURCES}"
+    # Get the right dictionaries
+    dictL = [x.rstr() for x in source[:-1]]
 
-def normalize_text(target, source, env, for_signature):
-    return ""
+    # read in the dictionaries, normalizing the case of the word tokens to
+    # all lowercase.  Normalize <hes> to <HES> so the LM tools don't think
+    # it is an XML tag.
+    voc = {}
+    pnsp = set()
+    for name in dictL:
+        with codecs.open(name,'rb',encoding='utf-8') as f:
+            for line in f:
+                pronL = line.strip().split(u'\t')
+                token = pronL.pop(0).lower()
+                #if cfg.skipRoman:
+                #    pronL.pop(0)
+                if token == '<hes>':
+                    token = '<HES>'
+                prons = voc.setdefault(token, set())
+                prons.update([attilapron(p,pnsp) for p in pronL])
 
-def make_dict(target, source, env, for_signature):
-    return ""
+    # need a collation function as a workaround for a Unicode bug in
+    # locale.xtrxfrm (bug is fixed in Python 3.0)
+    def collate(s):
+        return locale.strxfrm(s.encode('utf-8'))
 
-def make_phoneset(target, source, env, for_signature):
-    return ""
+    odict, opnsp, otags = [x.rstr() for x in target]
 
-def gen_db(target, source, env, for_signature):
-    return ""
+    # write the dictionary, and collect the phone set
+    with open(odict, 'w') as f:
+        for token in sorted(voc.iterkeys(),key=collate):
+            for pronX, pron in enumerate(voc[token]):
+                f.write("%s(%02d) %s\n" % (token.encode('utf-8'), 1+pronX, pron))
 
-def gen_refs(target, source, env, for_signature):
-    return ""
+        for elt in nonlex:
+            token = elt[0]
+            for pronX, pron in enumerate(elt[1]):
+                f.write("%s(%02d) %s\n" % (token, 1+pronX, pron))
+
+    # generate and write a list of phone symbols (pnsp)
+    with open(opnsp, 'w') as f:
+        for pn in sorted(pnsp):
+            f.write("%s\n" % pn)
+        f.write("\n".join(["SIL", "NS", "VN", "REJ", "|", "-1"]) + "\n")
+
+    # generate and write a list of tags
+    with open(otags,'w') as f:
+        f.write("wb\n")
+    return None
 
 #
 # Language Model
 #
 
-def ibm_train_language_model(target, source, env, for_signature):
-    return ""
+def ibm_train_language_model(target, source, env):
+    text_file = source[0].rstr()
+    vocab_file = source[1].rstr()
+    n = source[2].read()
+
+    # first create count files
+    temp_dir = tempfile.mkdtemp()
+    prefix = os.path.join(temp_dir, "temp")
+    cmd = "${ATTILA_PATH}/tools/lm_64/CountNGram -n %d %s %s %s" % (n, text_file, vocab_file, prefix)
+    out, err, success = run_command(env.subst(cmd))
+
+    # build LM
+    lm = ".".join(target[0].rstr().split(".")[0:-2])
+    cmd = "${ATTILA_PATH}/tools/lm_64/BuildNGram.sh -n %d -arpabo %s %s" % (n, prefix, lm)
+    out, err, success = run_command(env.subst(cmd), env={"SFCLMTOOLS" : env.subst("${ATTILA_PATH}/tools/lm_64")})
+
+    # clean up
+    for i in range(1, n + 1):
+        os.remove("%s.count.%d" % (prefix, i))
+    os.remove("%s.count.check" % (prefix))
+    os.rmdir(temp_dir)
+    return None
 
 def train_pronunciation_model(target, source, env):
     """
@@ -210,39 +292,27 @@ def augment_language_model_from_babel(target, source, env):
         return err
     return None
 
-
-#
-# Generic Audio Model
-#
-
-#
-# Speech/Non-Speech Model
-#
-
-#
-# Context-Independent Model
-#
-
-#
-# mixup
-#
-
-#
-# Context-Dependent Model
-#
-
-
-#
-#
-#
-
-
 def collect_text(target, source, env):
+    words = set()
     with meta_open(target[0].rstr(), "w") as ofd:
         for dname in source:
             for fname in glob(os.path.join(dname.rstr(), "*.txt")):
-                with meta_open(fname) as fd:
-                    ofd.write(fd.read())
+                with meta_open(fname) as ifd:
+                    for line in ifd:
+                        if not line.startswith("["):
+                            toks = []
+                            for x in line.lower().split():
+                                if x == "<hes>":
+                                    toks.append("<HES>")
+                                elif not x.startswith("<"):
+                                    toks.append(x)
+                            for t in toks:
+                                words.add(t)
+                            if len(toks) > 0:
+                                ofd.write("%s </s>\n" % (" ".join(toks)))
+    with meta_open(target[1].rstr(), "w") as ofd:
+        ofd.write("# BOS: <s>\n# EOS: </s>\n# UNK: <UNK>\n<s>\n</s>\n<UNK>\n")
+        ofd.write("\n".join(sorted(words)) + "\n")                                      
     return None
 
 
@@ -351,23 +421,16 @@ def create_small_asr_directory_emitter(target, source, env):
     return new_targets, new_sources
 
 def TOOLS_ADD(env):
-    env.Append(BUILDERS = {"IBMTrainLanguageModel" : Builder(generator=ibm_train_language_model),
-                           "BaseDictionary" : Builder(generator=make_base_dict),
-                           "CollectRawText" : Builder(generator=collect_raw_text),
-                           "Experiment" : Builder(action=experiment, emitter=experiment_emitter),
+    env.Append(BUILDERS = {"AppenToAttila" : Builder(action=appen_to_attila),
+                           "DictionaryToVocabulary" : Builder(action=dictionary_to_vocabulary),
+                           "IBMTrainLanguageModel" : Builder(action=ibm_train_language_model),
                            "MissingVocabulary" : Builder(action=missing_vocabulary),
                            "AugmentLanguageModel" : Builder(action=augment_language_model, emitter=augment_language_model_emitter),
-
-                           # add_words old_lm new_words new_lm new_vocab new_dict
-                           #"AugmentLanguageModel" : Builder(action="${ADD_WORDS} ${SOURCES[0]} ${SOURCES[1]} ${TARGETS[0]} ${TARGETS[1]} ${TARGETS[2]}"),
                            "AugmentLanguageModelFromBabel" : Builder(action=augment_language_model_from_babel),
                            "TranscriptVocabulary" : Builder(action=transcript_vocabulary),
                            "TrainPronunciationModel" : Builder(action=train_pronunciation_model),
                            "CreateASRDirectory" : Builder(action=create_asr_directory, emitter=create_asr_directory_emitter),
                            "CreateSmallASRDirectory" : Builder(action=create_small_asr_directory, emitter=create_small_asr_directory_emitter),
-
                            "CollectText" : Builder(action=collect_text),
-                           #"BuildCounts" : Builder(action="CountNGram -n 4 ${SOURCE[0]} ${SOURCE[1]} lm-train"),
-                           #"BuildNGram" : Builder(action="BuildNGram.sh -n 3 -arpabo lm-train ${TARGET[0]}"
                            })
                

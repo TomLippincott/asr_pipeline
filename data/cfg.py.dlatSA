@@ -75,5 +75,5 @@ nn    = nnet.NeuralNet(layerL=layerL,depL=[fe.end])
 nn.db = db
 
 # output
-ctmDir = '${CTM_OPATH}'
-latDir = '${LAT_OPATH}'
+ctmDir = '${CTM_OPATH}/'
+latDir = '${LAT_OPATH}/'
