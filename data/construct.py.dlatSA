@@ -11,6 +11,13 @@ import user
 from attila import *
 import  dsearch, misc
 import cfg
+import os
+import os.path
+
+try:
+    os.makedirs(os.path.dirname(cfg.graph))
+except:
+    pass
 
 se = dsearch.Decoder(lmType=32)
 se.build(cfg)

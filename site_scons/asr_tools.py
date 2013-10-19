@@ -21,8 +21,6 @@ import codecs
 import locale
 
 
-
-
 def meta_open(file_name, mode="r"):
     """
     Convenience function for opening a file with gzip if it ends in "gz", uncompressed otherwise.
@@ -31,6 +29,7 @@ def meta_open(file_name, mode="r"):
         return gzip.open(file_name, mode)
     else:
         return open(file_name, mode)
+
 
 def run_command(cmd, env={}, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, data=None):
     """
@@ -47,12 +46,13 @@ def run_command(cmd, env={}, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stde
     return out, err, process.returncode == 0
 
 
-def dictionary_to_vocabulary(target, source, env):
+def pronunciations_to_vocabulary(target, source, env):
     with meta_open(source[0].rstr()) as ifd:
-        d = arpabo.Dictionary(ifd)
+        d = arpabo.Pronunciations(ifd)
     with meta_open(target[0].rstr(), "w") as ofd:
         ofd.write(d.format_vocabulary())
     return None
+
 
 def appen_to_attila(target, source, env):
     # set the locale for sorting and getting consistent case
@@ -123,7 +123,7 @@ def appen_to_attila(target, source, env):
 
     odict, opnsp, otags = [x.rstr() for x in target]
 
-    # write the dictionary, and collect the phone set
+    # write the pronunciations, and collect the phone set
     with open(odict, 'w') as f:
         for token in sorted(voc.iterkeys(),key=collate):
             for pronX, pron in enumerate(voc[token]):
@@ -145,9 +145,6 @@ def appen_to_attila(target, source, env):
         f.write("wb\n")
     return None
 
-#
-# Language Model
-#
 
 def ibm_train_language_model(target, source, env):
     text_file = source[0].rstr()
@@ -172,6 +169,7 @@ def ibm_train_language_model(target, source, env):
     os.rmdir(temp_dir)
     return None
 
+
 def train_pronunciation_model(target, source, env):
     """
     g2p.py --train - --devel 5% --model test.model2 --ramp-up --write-model test.model3
@@ -192,6 +190,7 @@ def train_pronunciation_model(target, source, env):
         else:
             return None
 
+
 def transcript_vocabulary(target, source, env):
     """
     Input: list of transcript files
@@ -205,7 +204,11 @@ def transcript_vocabulary(target, source, env):
         ofd.write("\n".join(sorted(words)))
     return None
 
+
 def missing_vocabulary(target, source, env):
+    """
+    
+    """
     with meta_open(source[0].rstr()) as lm_fd, meta_open(source[1].rstr()) as dict_fd, meta_open(target[0].rstr(), "w") as new_dict:
         dict_words = {}
         for l in dict_fd:
@@ -223,36 +226,47 @@ def missing_vocabulary(target, source, env):
 
 def augment_language_model(target, source, env):
     """
-    Input: old language model, old dictionary, new pronunciations
-    Output: new language model, new vocab, new dictionary
+    Input: old language model, old pronunciations, new pronunciations
+    Output: new language model, new vocab, new pronunciations
     """
-    from arpabo import Arpabo, Dictionary
-    old_lm = Arpabo(meta_open(source[0].rstr()))
-    old_dict = Dictionary(meta_open(source[1].rstr()))
-    new_prons = Dictionary(meta_open(source[2].rstr()))
-    wt = source[3].read()
+    from arpabo import Arpabo, Pronunciations
+    if len(source) == 4:
+        old_prons = Pronunciations(meta_open(source[0].rstr()))
+        old_lm = Arpabo(meta_open(source[1].rstr()))
+        new_prons = Pronunciations(meta_open(source[2].rstr()))
+        mass = source[3].read()
+    elif len(source) == 5:
+        old_prons = Pronunciations(meta_open(source[0].rstr()))
+        old_lm = Arpabo(meta_open(source[1].rstr()))
+        new_prons = Pronunciations(meta_open(source[2].rstr()))
+        new_probs = arpabo.ProbabilityList(meta_open(source[3].rstr()))
+        mass = source[4].read()
 
     logging.info("Old LM: %s", old_lm)
-    logging.info("Old Dictionary: %s", old_dict)
+    logging.info("Old Pronunciations: %s", old_prons)
     logging.info("Words to add: %s", new_prons)
 
-    old_dict.add_entries(new_prons)
-    old_lm.add_unigrams(new_prons.get_words(), wt)
-
+    old_prons.add_entries(new_prons)
+    if len(source) == 4:
+        old_lm.add_unigrams(new_prons.get_words(), mass)
+    else:
+        old_lm.add_unigrams_with_probs(new_probs, mass)
+    logging.info("New Pronunciations: %s", old_prons)
     logging.info("New LM: %s", old_lm)
-    logging.info("New Dictionary: %s", old_dict)
+    logging.info("New words have weight %s", old_lm.get_probability_of_words(new_prons.get_words()))
+    logging.info("Old words have weight %s", old_lm.get_probability_of_not_words(new_prons.get_words()))
 
-    with meta_open(target[0].rstr(), "w") as new_lm, meta_open(target[1].rstr(), "w") as new_vocab, meta_open(target[2].rstr(), "w") as new_dict:
+    with meta_open(target[0].rstr(), "w") as new_vocab, meta_open(target[1].rstr(), "w") as new_prons, meta_open(target[2].rstr(), "w") as new_lm:
         new_lm.write(old_lm.format())
-        new_vocab.write(old_dict.format_vocabulary() + "\n")
-        new_dict.write(old_dict.format_dictionary() + "\n")
-
+        new_vocab.write(old_prons.format_vocabulary())
+        new_prons.write(old_prons.format())
     return None
+
 
 def augment_language_model_emitter(target, source, env):
     """
-    Input: either a single dictionary, or something else
-    Output: given a dictionary, set up the appropriate dependencies, otherwise pass through
+    Input: either a single pronunciations, or something else
+    Output: given a pronunciations, set up the appropriate dependencies, otherwise pass through
     """
     # if there's more than one source, or it isn't a Python value, don't modify anything
     if len(source) != 1:
@@ -263,34 +277,35 @@ def augment_language_model_emitter(target, source, env):
         except:
             return target, source
         base_path = env.get("BASE", "work")
-        new_targets = [os.path.join(base_path, x % (config["NAME"])) for x in ["%s_lm.arpabo.gz", "%s_vocab.txt", "%s_dict.txt"]]
-        new_sources = [config[x] for x in ["OLD_LANGUAGE_MODEL_FILE", "OLD_DICTIONARY_FILE", "NEW_DICTIONARY_FILE"]] + [env.Value(config["PROBABILITY_MASS"])]
+        new_targets = [os.path.join(base_path, x % (config["NAME"])) for x in ["%s_vocab.txt", "%s_pronunciations.txt", "%s_lm.arpabo.gz"]]
+        new_sources = [config[x] for x in ["OLD_PRONUNCIATIONS_FILE", "OLD_LANGUAGE_MODEL_FILE", "NEW_PRONUNCIATIONS_FILE"]] + [env.Value(config["PROBABILITY_MASS"])]
         return new_targets, new_sources
 
 
-def augment_language_model_from_babel(target, source, env):
-    """
-    """
-    (tnew_fid, tnew), (tdict_fid, tdict), (tlm_fid, tlm) = [tempfile.mkstemp() for i in range(3)]
-    (tnewdict_fid, tnewdict), (tnewlm_fid, tnewlm) = [tempfile.mkstemp() for i in range(2)]
-    bad = "\xc3\xb1"
-    words = {}
-    for m in re.finditer(r"^(.*)\(\d+\) (\S+) \[ wb \] (.*) \[ wb \]$", meta_open(source[0].rstr()).read().replace(bad, "XQXQ"), re.M):
-        word, a, b = m.groups()
-        words[word] = words.get(word, []) + ["%s %s" % (a, b)]
-    swords = sorted(words.iteritems())
-    meta_open(tnew, "w").write("\n".join([x[0] for x in swords]))
-    meta_open(tdict, "w").write("\n".join(["\n".join(["%s %s" % (k, vv) for vv in v]) for k, v in swords]))
-    meta_open(tlm, "w").write(meta_open(source[1].rstr()).read().replace(bad, "XQXQ"))
-    out, err, success = run_command(["java", "-jar", "data/AddWord.jar", "-n", tnew, "-d", tdict, "-a", tlm, 
-                                     "-D", tnewdict, "-A", tnewlm, "-p", "-4.844"])
-    with meta_open(target[0].rstr(), "w") as newdict_fd, meta_open(target[1].rstr(), "w") as newlm_fd:
-        newdict_fd.write(meta_open(tnewdict).read().replace("XQXQ", bad))
-        newlm_fd.write(meta_open(tnewlm).read().replace("XQXQ", bad))
-    [os.remove(x) for x in [tnew, tdict, tlm, tnewdict, tnewlm]]
-    if not success:
-        return err
-    return None
+# def augment_language_model_from_babel(target, source, env):
+#     """
+#     """
+#     (tnew_fid, tnew), (tdict_fid, tdict), (tlm_fid, tlm) = [tempfile.mkstemp() for i in range(3)]
+#     (tnewdict_fid, tnewdict), (tnewlm_fid, tnewlm) = [tempfile.mkstemp() for i in range(2)]
+#     bad = "\xc3\xb1"
+#     words = {}
+#     for m in re.finditer(r"^(.*)\(\d+\) (\S+) \[ wb \] (.*) \[ wb \]$", meta_open(source[0].rstr()).read().replace(bad, "XQXQ"), re.M):
+#         word, a, b = m.groups()
+#         words[word] = words.get(word, []) + ["%s %s" % (a, b)]
+#     swords = sorted(words.iteritems())
+#     meta_open(tnew, "w").write("\n".join([x[0] for x in swords]))
+#     meta_open(tdict, "w").write("\n".join(["\n".join(["%s %s" % (k, vv) for vv in v]) for k, v in swords]))
+#     meta_open(tlm, "w").write(meta_open(source[1].rstr()).read().replace(bad, "XQXQ"))
+#     out, err, success = run_command(["java", "-jar", "data/AddWord.jar", "-n", tnew, "-d", tdict, "-a", tlm, 
+#                                      "-D", tnewdict, "-A", tnewlm, "-p", "-4.844"])
+#     with meta_open(target[0].rstr(), "w") as newdict_fd, meta_open(target[1].rstr(), "w") as newlm_fd:
+#         newdict_fd.write(meta_open(tnewdict).read().replace("XQXQ", bad))
+#         newlm_fd.write(meta_open(tnewlm).read().replace("XQXQ", bad))
+#     [os.remove(x) for x in [tnew, tdict, tlm, tnewdict, tnewlm]]
+#     if not success:
+#         return err
+#     return None
+
 
 def collect_text(target, source, env):
     words = set()
@@ -396,13 +411,14 @@ def create_small_asr_directory(target, source, env):
     for template, final in zip(templates, target):
         with open(template.rstr()) as ifd, open(final.rstr(), "w") as ofd:
             ofd.write(scons_subst(ifd.read(), env=env, lvars=config))
-
     return None
+
 
 def create_small_asr_directory_emitter(target, source, env):
 
     # start with three configuration dictionaries
     files, directories, parameters = [x.read() for x in source]
+    directories["CONFIGURATION_PATH"] = target[0].rstr()
 
     # create a dependency on each file passed in
     for name, path in files.iteritems():
@@ -420,17 +436,102 @@ def create_small_asr_directory_emitter(target, source, env):
 
     return new_targets, new_sources
 
+
+def babelgum_lexicon(target, source, env):
+    size = source[2].read()
+    with meta_open(source[0].rstr()) as ifd:
+        probabilities = sorted([(float(p), w) for w, p in [x.strip().split() for x in meta_open(source[0].rstr())]])[0:size]
+    pronunciations = {}
+    with meta_open(source[1].rstr()) as ifd:
+        for w, n, p in [x.groups() for x in re.finditer(r"^(\S+)\((\d+)\) (.*?)$", ifd.read(), re.M)]:
+            pronunciations[w] = pronunciations.get(w, {})
+            pronunciations[w][int(n)] = p
+    with meta_open(target[0].rstr(), "w") as prob_ofd, meta_open(target[1].rstr(), "w") as pron_ofd:
+        prob_ofd.write("\n".join(["%s %f" % (w, p) for p, w in probabilities]))
+        for w in sorted([x[1] for x in probabilities]):
+            for n, p in sorted(pronunciations[w].iteritems()):
+                pron_ofd.write("%s(%.2d) %s\n" % (w, n, p))
+    return None
+
+
+def replace_pronunciations(target, source, env):
+    """
+    Takes two pronunciation files, and replaces pronunciations in the first with those from the second, 
+    for overlapping words.  Returns a new vocabulary file and pronunciation file.
+    """
+    with meta_open(source[0].rstr()) as old_fd, meta_open(source[1].rstr()) as repl_fd:
+        old = arpabo.Pronunciations(old_fd)
+        repl = arpabo.Pronunciations(repl_fd)
+    logging.info("Old pronunciations: %s", old)
+    logging.info("Replacement pronunciations: %s", repl)
+    old.replace_by(repl)
+    logging.info("New pronunciations: %s", old)
+    with meta_open(target[0].rstr(), "w") as voc_ofd, meta_open(target[1].rstr(), "w") as pron_ofd:
+        voc_ofd.write(old.format_vocabulary())
+        pron_ofd.write(old.format())
+    return None
+
+
+# def replace_probabilities(target, source, env):
+#     """
+#     Takes a probability list and a language model, and creates a new probability list
+#     where each word has the probability from the language model, for overlapping words.
+
+#     Either the unspecified word probabilities are scaled (False), or all word probabilities 
+#     are scaled (True), such that the unigram probabilities sum to one.
+#     """
+#     with meta_open(source[0].rstr()) as pl_fd, meta_open(source[1].rstr()) as lm_fd:
+#         pass
+#     return None
+
+
+def filter_words(target, source, env):
+    """
+    Takes a coherent language model, pronunciation file and vocabulary file, and a second
+    vocabulary file, and returns a coherent language model, pronunciation file and vocabulary 
+    file limited to the words in the second vocabulary file.
+
+    The language model probabilities are scaled such that unigrams sum to one. ***
+    """
+    with meta_open(source[0].rstr()) as voc_fd, meta_open(source[1].rstr()) as pron_fd, meta_open(source[2].rstr()) as lm_fd, meta_open(source[3].rstr()) as lim_fd:
+        lm = arpabo.Arpabo(lm_fd)
+        pron = arpabo.Pronunciations(pron_fd)
+        voc = arpabo.Vocabulary(voc_fd)
+        lim = arpabo.Vocabulary(lim_fd)
+    logging.info("Original vocabulary: %s", voc)
+    logging.info("Original pronunciations: %s", pron)
+    logging.info("Original LM: %s", lm)
+    logging.info("Limiting vocabulary: %s", lim)
+    logging.info("Vocabulary to remove has mass: %s", lm.get_probability_of_not_words(lim.get_words()))
+    logging.info("Vocabulary to remain has mass: %s", lm.get_probability_of_words(lim.get_words()))
+    lm.filter_by(lim)
+    pron.filter_by(lim)
+    voc.filter_by(lim)
+    logging.info("New vocabulary: %s", voc)
+    logging.info("New pronunciations: %s", pron)
+    logging.info("New LM: %s", lm)
+    with meta_open(target[0].rstr(), "w") as voc_ofd, meta_open(target[1].rstr(), "w") as pron_ofd, meta_open(target[2].rstr(), "w") as lm_ofd:
+        voc_ofd.write(voc.format())
+        pron_ofd.write(pron.format())
+        lm_ofd.write(lm.format())
+    return None
+
+
 def TOOLS_ADD(env):
     env.Append(BUILDERS = {"AppenToAttila" : Builder(action=appen_to_attila),
-                           "DictionaryToVocabulary" : Builder(action=dictionary_to_vocabulary),
+                           "PronunciationsToVocabulary" : Builder(action=pronunciations_to_vocabulary),
                            "IBMTrainLanguageModel" : Builder(action=ibm_train_language_model),
                            "MissingVocabulary" : Builder(action=missing_vocabulary),
                            "AugmentLanguageModel" : Builder(action=augment_language_model, emitter=augment_language_model_emitter),
-                           "AugmentLanguageModelFromBabel" : Builder(action=augment_language_model_from_babel),
+                           #"AugmentLanguageModelFromBabel" : Builder(action=augment_language_model_from_babel),
                            "TranscriptVocabulary" : Builder(action=transcript_vocabulary),
                            "TrainPronunciationModel" : Builder(action=train_pronunciation_model),
                            "CreateASRDirectory" : Builder(action=create_asr_directory, emitter=create_asr_directory_emitter),
                            "CreateSmallASRDirectory" : Builder(action=create_small_asr_directory, emitter=create_small_asr_directory_emitter),
                            "CollectText" : Builder(action=collect_text),
+                           "BabelGumLexicon" : Builder(action=babelgum_lexicon),
+                           "ReplacePronunciations" : Builder(action=replace_pronunciations),
+                           #"ReplaceProbabilities" : Builder(action=replace_probabilities),
+                           "FilterWords" : Builder(action=filter_words),                           
                            })
                

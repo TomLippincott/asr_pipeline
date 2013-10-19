@@ -43,9 +43,9 @@ env = Environment(variables=vars, ENV={}, TARFLAGS="-c -z", TARSUFFIX=".tgz",
 # initialize the Python logging system (though we don't really use it in this build, could be useful later)
 #
 if isinstance(env["LOG_DESTINATION"], basestring):
-    logging.basicConfig(format='%(asctime)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S', level=env["LOG_LEVEL"], filename=env["LOG_DESTINATION"])
+    logging.basicConfig(format="\t%(asctime)s %(message)s", datefmt='%Y-%m-%d %H:%M:%S', level=env["LOG_LEVEL"], filename=env["LOG_DESTINATION"])
 else:
-    logging.basicConfig(format='%(asctime)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S', level=env["LOG_LEVEL"])
+    logging.basicConfig(format="\t%(asctime)s %(message)s", datefmt='%Y-%m-%d %H:%M:%S', level=env["LOG_LEVEL"])
 
 #
 # each Builder emits a string describing what it's doing (target, source, etc), but with thousands of
@@ -60,6 +60,8 @@ def print_cmd_line(s, target, source, env):
 
 env['PRINT_CMD_LINE_FUNC'] = print_cmd_line
 
+# always refer to sets of lexicon files in the order: vocabulary, pronunciations, language model
+
 for language, packs in env["LANGUAGES"].iteritems():
     for pack, locations in packs.iteritems():
         data = locations["data"]
@@ -73,213 +75,113 @@ for language, packs in env["LANGUAGES"].iteritems():
             except:
                 pass
 
-        baseline_dictionary = env.File(os.path.join(models, "models", "dict.test"))
         baseline_vocab = env.File(os.path.join(models, "models", "vocab"))
+        baseline_pronunciations = env.File(os.path.join(models, "models", "dict.test"))
         baseline_lm = env.File(os.path.join(models, "models", "lm.3gm.arpabo.gz"))
 
+        def experiment(substitutions={}):
+            files = {"LANGUAGE_MODEL_FILE" : os.path.join(models, "models", "lm.3gm.arpabo.gz"),
+                     "PRONUNCIATIONS_FILE" : os.path.join(models, "models", "dict.test"),
+                     "VOCABULARY_FILE" : os.path.join(models, "models", "vocab"),
+                     "DATABASE_FILE" : os.path.join(models, "segment", "babel106.dev.LimitedLP.seg.v1.db"),
+                     "MEL_FILE" : os.path.join(models, "models", "mel"),
+                     "PHONE_FILE" : os.path.join(models, "models", "pnsp"),
+                     "PHONE_SET_FILE" : os.path.join(models, "models", "phonesset"),
+                     "TAGS_FILE" : os.path.join(models, "models", "tags"),
+                     "PRIORS_FILE" : os.path.join(models, "models", "priors"),
+                     "TREE_FILE" : os.path.join(models, "models", "tree"),
+                     "TOPO_FILE" : os.path.join(models, "models", "topo.tied"),
+                     "TOPO_TREE_FILE" : os.path.join(models, "models", "topotree"),
+                     "WARP_FILE" : os.path.join(models, "adapt", "warp.lst"),
+                     "LDA_FILE" : os.path.join(models, "models", "30.mat"),
+                     }
+            directories = {"PCM_PATH" : data,
+                           "OUTPUT_PATH" : os.path.join(output_path, "baseline"),
+                           "CMS_PATH" : os.path.join(models, "adapt", "cms"),
+                           "FMLLR_PATH" : os.path.join(models, "adapt", "fmllr"),
+                           "MODEL_PATH" : os.path.join(models, "models"),
+                           }
+            parameters = {"SAMPLING_RATE" : 8000,                    
+                          "FEATURE_TYPE" : "plp",
+                          "AC_WEIGHT" : 0.053,
+                          "MAX_ERROR" : 15000,
+                          "USE_DISPATCHER" : False,
+                          }
 
+            for k in files.keys():
+                files[k] = substitutions.get(k, files[k])
+
+            for k in directories.keys():
+                directories[k] = substitutions.get(k, directories[k])
+
+            for k in parameters.keys():
+                parameters[k] = parameters.get(k, parameters[k])
+                
+            return [env.Value(x) for x in [files, directories, parameters]]
+            
         # baseline experiment
-        baseline = env.CreateSmallASRDirectory(Dir(os.path.join(base_path, "baseline")),
-                                               [env.Value({"LANGUAGE_MODEL_FILE" : os.path.join(models, "models", "lm.3gm.arpabo.gz"),
-                                                           "DICTIONARY_FILE" : os.path.join(models, "models", "dict.test"),
-                                                           "VOCABULARY_FILE" : os.path.join(models, "models", "vocab"),
-                                                           "DATABASE_FILE" : os.path.join(models, "segment", "babel106.dev.LimitedLP.seg.v1.db"),
-                                                           "MEL_FILE" : os.path.join(models, "models", "mel"),
-                                                           "PHONE_FILE" : os.path.join(models, "models", "pnsp"),
-                                                           "PHONE_SET_FILE" : os.path.join(models, "models", "phonesset"),
-                                                           "TAGS_FILE" : os.path.join(models, "models", "tags"),
-                                                           "PRIORS_FILE" : os.path.join(models, "models", "priors"),
-                                                           "TREE_FILE" : os.path.join(models, "models", "tree"),
-                                                           "TOPO_FILE" : os.path.join(models, "models", "topo.tied"),
-                                                           "TOPO_TREE_FILE" : os.path.join(models, "models", "topotree"),
-                                                           "WARP_FILE" : os.path.join(models, "adapt", "warp.lst"),
-                                                           "LDA_FILE" : os.path.join(models, "models", "30.mat"),
-                                                           }),
-                                                env.Value({"PCM_PATH" : data,
-                                                           "OUTPUT_PATH" : os.path.join(output_path, "baseline"),
-                                                           "CONFIGURATION_PATH" : os.path.join(base_path, "baseline"),
-                                                           "CMS_PATH" : os.path.join(models, "adapt", "cms"),
-                                                           "FMLLR_PATH" : os.path.join(models, "adapt", "fmllr"),
-                                                           "MODEL_PATH" : os.path.join(models, "models"),
-                                                           }),
-                                                env.Value({"SAMPLING_RATE" : 8000,                    
-                                                           "FEATURE_TYPE" : "plp",
-                                                           "AC_WEIGHT" : 0.053,
-                                                           "MAX_ERROR" : 15000,
-                                                           "USE_DISPATCHER" : False,
-                                                           })
-                                                ])
+        baseline_experiment = env.CreateSmallASRDirectory(Dir(os.path.join(base_path, "experiments", "baseline", "baseline", "baseline")), experiment())
 
-        # triple oracle experiment
-        oracle_dictionary, oracle_pnsp, oracle_tags = env.AppenToAttila([os.path.join(base_path, x) for x in ["oracle_dictionary.txt", "oracle_pnsp.txt", "oracle_tags.txt"]],
+        oracle_pronunciations, oracle_pnsp, oracle_tags = env.AppenToAttila([os.path.join(base_path, x) for x in ["oracle_pronunciations.txt", "oracle_pnsp.txt", "oracle_tags.txt"]],
                                                                         [os.path.join(data, "conversational", "reference_materials", "lexicon.txt"),
                                                                          os.path.join(data, "scripted", "reference_materials", "lexicon.txt"),
                                                                          env.Value(locale)])
         oracle_text, oracle_text_words = env.CollectText([os.path.join(base_path, x) for x in ["oracle_text.txt", "oracle_text_words.txt"]], 
                                                          [env.Dir(x) for x in glob(os.path.join(data, "*/*/transcription"))])
-        oracle_vocabulary = env.DictionaryToVocabulary(os.path.join(base_path, "oracle_vocabulary.txt"), oracle_dictionary)
+        oracle_vocabulary = env.PronunciationsToVocabulary(os.path.join(base_path, "oracle_vocabulary.txt"), oracle_pronunciations)
         oracle_lm = env.IBMTrainLanguageModel(os.path.join(base_path, "oracle_lm.3gm.arpabo.gz"), [oracle_text, oracle_text_words, env.Value(3)])
-        triple_oracle = env.CreateSmallASRDirectory(Dir(os.path.join(base_path, "triple_oracle")),
-                                               [env.Value({"LANGUAGE_MODEL_FILE" : oracle_lm[0], #os.path.join(models, "models", "lm.3gm.arpabo.gz"),
-                                                           "DICTIONARY_FILE" : oracle_dictionary, #os.path.join(models, "models", "dict.test"),
-                                                           "VOCABULARY_FILE" : oracle_vocabulary[0], #os.path.join(models, "models", "vocab"),
-                                                           "DATABASE_FILE" : os.path.join(models, "segment", "babel106.dev.LimitedLP.seg.v1.db"),
-                                                           "MEL_FILE" : os.path.join(models, "models", "mel"),
-                                                           "PHONE_FILE" : os.path.join(models, "models", "pnsp"),
-                                                           "PHONE_SET_FILE" : os.path.join(models, "models", "phonesset"),
-                                                           "TAGS_FILE" : os.path.join(models, "models", "tags"),
-                                                           "PRIORS_FILE" : os.path.join(models, "models", "priors"),
-                                                           "TREE_FILE" : os.path.join(models, "models", "tree"),
-                                                           "TOPO_FILE" : os.path.join(models, "models", "topo.tied"),
-                                                           "TOPO_TREE_FILE" : os.path.join(models, "models", "topotree"),
-                                                           "WARP_FILE" : os.path.join(models, "adapt", "warp.lst"),
-                                                           "LDA_FILE" : os.path.join(models, "models", "30.mat"),
-                                                           }),
-                                                env.Value({"PCM_PATH" : data,
-                                                           "OUTPUT_PATH" : os.path.join(output_path, "triple_oracle"),
-                                                           "CONFIGURATION_PATH" : os.path.join(base_path, "triple_oracle"),
-                                                           "CMS_PATH" : os.path.join(models, "adapt", "cms"),
-                                                           "FMLLR_PATH" : os.path.join(models, "adapt", "fmllr"),
-                                                           "MODEL_PATH" : os.path.join(models, "models"),
-                                                           }),
-                                                env.Value({"SAMPLING_RATE" : 8000,                    
-                                                           "FEATURE_TYPE" : "plp",
-                                                           "AC_WEIGHT" : 0.053,
-                                                           "MAX_ERROR" : 15000,
-                                                           "USE_DISPATCHER" : False,
-                                                           })
-                                                ])
+
+        # triple oracle experiment
+        triple_oracle_experiment = env.CreateSmallASRDirectory(Dir(os.path.join(base_path, "experiments", "oracle", "oracle", "oracle")),
+                                                               experiment({"VOCABULARY_FILE" : oracle_vocabulary[0].rstr(),
+                                                                           "PRONUNCIATIONS_FILE" : oracle_pronunciations.rstr(),
+                                                                           "LANGUAGE_MODEL_FILE" : oracle_lm[0].rstr(),
+                                                                           })
+                                                               )
         
+        for model, (probs, prons) in locations.get("babelgum", {}).iteritems():
+            for size in [50000]:
+                all_bg_probabilities, all_bg_pronunciations = env.BabelGumLexicon([os.path.join(base_path, x) for x in ["babelgum_%s_%d_probabilities.txt" % (model, size), 
+                                                                                                                        "babelgum_%s_%d_pronunciations.txt" % (model, size)]], 
+                                                                                  [probs, prons, env.Value(size)])
 
-#
-# check whether custom.py has defined all the variables we need
-#
-# undefined = [x for x in vars.keys() if x not in env]
-# if len(undefined) != 0:
-#     print ""
-# One or more parameters (%s) are undefined.  Please edit custom.py appropriately.
-# To get started, 'cp custom.py.example custom.py'
-# """ % (",".join(undefined))
-#     env.Exit()
+                bg_pron_correct_pron, bg_vocab_correct_pron = env.ReplacePronunciations(
+                    [os.path.join(base_path, x) for x in ["bg_%s_%d_pron_correct_pron.txt" % (model, size), "bg_%s_%d_vocab_correct_pron.txt" % (model, size)]],
+                    [all_bg_pronunciations, oracle_pronunciations])
 
-#
-# build all language models
-#
-#language_models = {}
-#for name, config in env["LANGUAGE_MODELS"].iteritems():
-#    full_config = {"NAME" : name}
-#    full_config.update(config)
-#    language_models[name] = env.AugmentLanguageModel([], env.Value(full_config))
+                for weight in [.1]:
+                    continue
+                    bg_vocab, bg_pron, bg_lm = env.AugmentLanguageModel(
+                        [os.path.join(base_path, "bg_%s_%d_%f_probabilities_%s" % (model, size, weight, x)) for x in ["vocab.txt", "pronunciations.txt", "lm.3gm.arpabo.gz"]],
+                        [baseline_pronunciations, baseline_lm, all_bg_pronunciations, all_bg_probabilities, env.Value(weight)]
+                        )
+                    bg_vocab_lim, bg_pron_lim, bg_lm_lim = env.FilterWords(
+                        [os.path.join(base_path, "bg_%s_%d_%f_probabilities_%s" % (model, size, weight, x)) for x in ["vocab_lim.txt", "pronunciations_lim.txt", "lim_lm.3gm.arpabo.gz"]],
+                        [bg_vocab, bg_pron, bg_lm, oracle_vocabulary]
+                        )
 
-    #env.AugmentLanguageModel(["work/model1_50k_lm.arpabo.gz", "work/model1_50k_vocab.txt", "work/model1_50k_dict.txt"],
-    #                                                                            [experiment["FILES"]["LANGUAGE_MODEL_FILE"],
-    #                                                                             experiment["FILES"]["DICTIONARY_FILE"],
-    #                                                                             "data/model1_50k.txt",
-    #                                                                             Value(.1),
-    #                                                                             ])
-    #
-    #model1_50k_lm, model1_50k_vocab, model1_50k_dict = 
-    #env.AugmentLanguageModel(["work/model1_50k_lm.arpabo.gz", "work/model1_50k_vocab.txt", "work/model1_50k_dict.txt"],
-    #                                                                            [experiment["FILES"]["LANGUAGE_MODEL_FILE"],
-    #                                                                             experiment["FILES"]["DICTIONARY_FILE"],
-    #                                                                             "data/model1_50k.txt",
-    #                                                                             Value(.1),
-    #                                                                             ])
+                for weight in [.1]:
+                    bg_vocab, bg_pron, bg_lm = env.AugmentLanguageModel(
+                        [os.path.join(base_path, "bg_%s_%d_%f_noprobabilities_%s" % (model, size, weight, x)) for x in ["vocab.txt", "pronunciations.txt", "lm.3gm.arpabo.gz"]],
+                        [baseline_pronunciations, baseline_lm, all_bg_pronunciations, env.Value(weight)]
+                        )
 
+                    babelgum_experiment = env.CreateSmallASRDirectory(Dir(os.path.join(base_path, "experiments", "babelgum", "babelgum", "babelgum")),
+                                                                      experiment({"VOCABULARY_FILE" : bg_vocab.rstr(),
+                                                                                  "PRONUNCIATIONS_FILE" : bg_pron.rstr(),
+                                                                                  "LANGUAGE_MODEL_FILE" : bg_lm.rstr(),
+                                                                                  })
+                                                                      )
 
-#
-# run all the experiments in EXPERIMENTS (defined in custom.py)
-#
-#for name, experiment in env["EXPERIMENTS"].iteritems():
-#    base_path = experiment["DIRECTORIES"]["CONFIGURATION_PATH"]
+                    bg_vocab_lim, bg_pron_lim, bg_lm_lim = env.FilterWords(
+                        [os.path.join(base_path, "bg_%s_%d_%f_noprobabilities_%s" % (model, size, weight, x)) for x in ["vocab_lim.txt", "pronunciations_lim.txt", "lim_lm.3gm.arpabo.gz"]],
+                        [bg_vocab, bg_pron, bg_lm, oracle_vocabulary]
+                        )
 
-    #topline_text = env.CollectText(os.path.join(base_path, "all_transcripts.txt"), [env.Dir(x) for x in glob(os.path.join(experiment["DIRECTORIES"]["PCM_PATH"], "*/*/transcription"))])
-    #all_vocab = env.TranscriptVocabulary(os.path.join(base_path, "all_vocab.txt"), topline_text)
-
-    #database_file, data_path, output_path, language_model_file, dictionary_file = [experiment[x] for x in ["DATABASE_FILE", "DATA_PATH", "OUTPUT_PATH", "LANGUAGE_MODEL_FILE", "DICTIONARY_FILE"]]
-    # "DICTIONARY_FILE", "LANGUAGE_MODEL_FILE", "VOCABULARY_FILE"
-#    baseline = env.CreateSmallASRDirectory(Dir(os.path.join(base_path, "baseline")),
-#                                           [env.Value(experiment["FILES"]),
-#                                            env.Value(experiment["DIRECTORIES"]),
-#                                            env.Value(experiment["PARAMETERS"]),
-#                                            ])
-
-    #model1_50k_experiment = experiment
-    #model1_50k_experiment["FILES"]["LANGUAGE_MODEL_FILE"] = model1_50k_lm.rstr()
-    #model1_50k_experiment["FILES"]["VOCABULARY_FILE"] = model1_50k_vocab.rstr()
-    #model1_50k_experiment["FILES"]["DICTIONARY_FILE"] = model1_50k_dict.rstr()
-    #model1_50k_experiment["DIRECTORIES"]["OUTPUT_PATH"] = ""
-    # baseline = env.CreateSmallASRDirectory(Dir(os.path.join(base_path, "baseline")),
-    #                                        [env.Value(model1_50k_experiment["FILES"]),
-    #                                         env.Value(model1_50k_experiment["DIRECTORIES"]),
-    #                                         env.Value(model1_50k_experiment["PARAMETERS"]),
-    #                                         ])
-                                      #database_file,
-                                      # language_model_file,
-                                      # dictionary_file,
-                                       
-                                      # mel
-                                      # ps
-                                      # pss
-                                      # tags
-                                      # tree
-                                       # topo
-                                      # topotree
-                                      #Dir(experiment["DATA_PATH"]),
-                                      #Dir(experiment["IBM_PATH"]),
-                                      #Dir(os.path.join(experiment["OUTPUT_PATH"], "baseline"))
-                                      #)
-
-
-    # for mass in [.01, .05, .1, .2, .4, .8]:
-    #     base = os.path.join("work", "%s_midline_%f" % (name, mass))
-    #     midline_lm, midline_vocab, midline_dict = env.AugmentLanguageModel([os.path.join(base, x) for x in ["midline_lm.arpabo.gz", "midline_vocab.txt", "midline_dict.txt"]],
-    #                                                                        [os.path.join(experiment["IBM_PATH"], "buildLM/lm.3gm.arpabo.gz"),
-    #                                                                         os.path.join(experiment["IBM_PATH"], "input/dict.test"),
-    #                                                                         os.path.join(experiment["IBM_PATH"], "input/dict.train"),
-    #                                                                         Value(mass),
-    #                                                                         ])
-    
-    #     midline = env.CreateASRDirectory(Dir(base),
-    #                                      [midline_lm,
-    #                                       midline_vocab,
-    #                                       midline_dict,
-    #                                       os.path.join(experiment["IBM_PATH"], "segment", "db", experiment["DATABASE"]),
-    #                                       Dir(experiment["DATA_PATH"]),
-    #                                       Dir(experiment["IBM_PATH"]),
-    #                                       Dir(os.path.join(experiment["OUTPUT_PATH"], "%s_midline_%f" % (name, mass)))
-    #                                       ])
-
-
-
-
-    # model1_50k_lm, model1_50k_vocab, model1_50k_dict = env.AugmentLanguageModel(["work/model1_50k_lm.arpabo.gz", "work/model1_50k_vocab.txt", "work/model1_50k_dict.txt"],
-    #                                                                             [os.path.join(experiment["IBM_PATH"], "buildLM/lm.3gm.arpabo.gz"),
-    #                                                                              os.path.join(experiment["IBM_PATH"], "input/dict.test"),
-    #                                                                              "data/model1_50k.txt",
-    #                                                                              Value(.1),
-    #                                                                              ])
-
-
-    # model1_50k = env.CreateASRDirectory(Dir(os.path.join("work", "%s_model1_50k" % name)),
-    #                                     [model1_50k_lm,
-    #                                      model1_50k_vocab,
-    #                                      model1_50k_dict,
-    #                                      os.path.join(experiment["IBM_PATH"], "segment", "db", experiment["DATABASE"]),
-    #                                      Dir(experiment["DATA_PATH"]),
-    #                                      Dir(experiment["IBM_PATH"]),
-    #                                      Dir(os.path.join(experiment["OUTPUT_PATH"], "model1_50k"))
-    #                                      ])
-
-    #pronunciation_model = env.TrainPronunciationModel("work/pronunciation_model_1.txt", ["input/dict.train", Value(5)])
-    #for i in range(2, 6):
-    #    pronunciation_model = env.TrainPronunciationModel("work/pronunciation_model_%d.txt" % i, ["input/dict.train", Value(5), pronunciation_model])
-    #env.Experiment(env.Dir(os.path.join("work", name)), Value(experiment))
-    #audio_files = env.Glob(os.path.join(experiment["AUDIO_PATH"], "*"))
-    #transcript_files = env.Glob(os.path.join(experiment["TRANSCRIPT_PATH"], "*"))
-    #lexicons, locale, skip_roman = [experiment[x] for x in ["LEXICONS", "LOCALE", "SKIP_ROMAN"]]
-    #base = os.path.join("work", name)
-    #audio_path = experiment["PATH"]
-    #env.BaseDictionary([os.path.join(base, x) for x in ["dictionary.txt", "phones.txt", "tags.txt"]], [Value(locale), Value(skip_roman)] + lexicons)
-    #for data_type in ["training", "dev"]:
-    #    env.CollectRawText(os.path.join(base, "%s_raw_text" % (data_type)), env.Glob(os.path.join(audio_path, "*", data_type, "transcription", "*")))
+                    babelgum_limited_experiment = env.CreateSmallASRDirectory(Dir(os.path.join(base_path, "experiments", "limited_babelgum")),
+                                                                      experiment({"VOCABULARY_FILE" : bg_vocab_lim.rstr(),
+                                                                                  "PRONUNCIATIONS_FILE" : bg_pron_lim.rstr(),
+                                                                                  "LANGUAGE_MODEL_FILE" : bg_lm_lim.rstr(),
+                                                                                  })
+                                                                      )
+                
