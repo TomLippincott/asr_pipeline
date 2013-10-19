@@ -75,14 +75,10 @@ for language, packs in env["LANGUAGES"].iteritems():
             except:
                 pass
 
-        baseline_vocab = env.File(os.path.join(models, "models", "vocab"))
-        baseline_pronunciations = env.File(os.path.join(models, "models", "dict.test"))
-        baseline_lm = env.File(os.path.join(models, "models", "lm.3gm.arpabo.gz"))
-
         def experiment(substitutions={}):
-            files = {"LANGUAGE_MODEL_FILE" : os.path.join(models, "models", "lm.3gm.arpabo.gz"),
-                     "PRONUNCIATIONS_FILE" : os.path.join(models, "models", "dict.test"),
-                     "VOCABULARY_FILE" : os.path.join(models, "models", "vocab"),
+            files = {"LANGUAGE_MODEL_FILE" : None, #os.path.join(models, "models", "lm.3gm.arpabo.gz"),
+                     "PRONUNCIATIONS_FILE" : None, #os.path.join(models, "models", "dict.test"),
+                     "VOCABULARY_FILE" : None, #os.path.join(models, "models", "vocab"),
                      "DATABASE_FILE" : os.path.join(models, "segment", "babel106.dev.LimitedLP.seg.v1.db"),
                      "MEL_FILE" : os.path.join(models, "models", "mel"),
                      "PHONE_FILE" : os.path.join(models, "models", "pnsp"),
@@ -96,7 +92,7 @@ for language, packs in env["LANGUAGES"].iteritems():
                      "LDA_FILE" : os.path.join(models, "models", "30.mat"),
                      }
             directories = {"PCM_PATH" : data,
-                           "OUTPUT_PATH" : os.path.join(output_path, "baseline"),
+                           "OUTPUT_PATH" : None, #os.path.join(output_path, "baseline"),
                            "CMS_PATH" : os.path.join(models, "adapt", "cms"),
                            "FMLLR_PATH" : os.path.join(models, "adapt", "fmllr"),
                            "MODEL_PATH" : os.path.join(models, "models"),
@@ -120,8 +116,18 @@ for language, packs in env["LANGUAGES"].iteritems():
             return [env.Value(x) for x in [files, directories, parameters]]
             
         # baseline experiment
-        baseline_experiment = env.CreateSmallASRDirectory(Dir(os.path.join(base_path, "experiments", "baseline", "baseline", "baseline")), experiment())
+        baseline_vocab = env.File(os.path.join(models, "models", "vocab"))
+        baseline_pronunciations = env.File(os.path.join(models, "models", "dict.test"))
+        baseline_lm = env.File(os.path.join(models, "models", "lm.3gm.arpabo.gz"))
+        baseline_experiment = env.CreateSmallASRDirectory(Dir(os.path.join("work", "experiments", language, pack, "baseline", "baseline", "baseline")), 
+                                                          experiment({"VOCABULARY_FILE" : baseline_vocab.rstr(),
+                                                                      "PRONUNCIATIONS_FILE" : baseline_pronunciations.rstr(),
+                                                                      "LANGUAGE_MODEL_FILE" : baseline_lm.rstr(),
+                                                                      "OUTPUT_PATH" : os.path.join(env["OUTPUT_PATH"], language, pack, "baseline", "baseline", "baseline"),
+                                                                      })
+                                                          )
 
+        # oracle experiment
         oracle_pronunciations, oracle_pnsp, oracle_tags = env.AppenToAttila([os.path.join(base_path, x) for x in ["oracle_pronunciations.txt", "oracle_pnsp.txt", "oracle_tags.txt"]],
                                                                         [os.path.join(data, "conversational", "reference_materials", "lexicon.txt"),
                                                                          os.path.join(data, "scripted", "reference_materials", "lexicon.txt"),
@@ -131,11 +137,12 @@ for language, packs in env["LANGUAGES"].iteritems():
         oracle_vocabulary = env.PronunciationsToVocabulary(os.path.join(base_path, "oracle_vocabulary.txt"), oracle_pronunciations)
         oracle_lm = env.IBMTrainLanguageModel(os.path.join(base_path, "oracle_lm.3gm.arpabo.gz"), [oracle_text, oracle_text_words, env.Value(3)])
 
-        # triple oracle experiment
-        triple_oracle_experiment = env.CreateSmallASRDirectory(Dir(os.path.join(base_path, "experiments", "oracle", "oracle", "oracle")),
+
+        triple_oracle_experiment = env.CreateSmallASRDirectory(Dir(os.path.join("work", "experiments", language, pack, "oracle", "oracle", "oracle")),
                                                                experiment({"VOCABULARY_FILE" : oracle_vocabulary[0].rstr(),
                                                                            "PRONUNCIATIONS_FILE" : oracle_pronunciations.rstr(),
                                                                            "LANGUAGE_MODEL_FILE" : oracle_lm[0].rstr(),
+                                                                           "OUTPUT_PATH" : os.path.join(env["OUTPUT_PATH"], language, pack, "oracle", "oracle", "oracle"),
                                                                            })
                                                                )
         
@@ -166,22 +173,23 @@ for language, packs in env["LANGUAGES"].iteritems():
                         [baseline_pronunciations, baseline_lm, all_bg_pronunciations, env.Value(weight)]
                         )
 
-                    babelgum_experiment = env.CreateSmallASRDirectory(Dir(os.path.join(base_path, "experiments", "babelgum", "babelgum", "babelgum")),
+                    babelgum_experiment = env.CreateSmallASRDirectory(Dir(os.path.join("work", "experiments", language, pack, "babelgum", "babelgum", "babelgum")),
                                                                       experiment({"VOCABULARY_FILE" : bg_vocab.rstr(),
                                                                                   "PRONUNCIATIONS_FILE" : bg_pron.rstr(),
                                                                                   "LANGUAGE_MODEL_FILE" : bg_lm.rstr(),
+                                                                                  "OUTPUT_PATH" : os.path.join(env["OUTPUT_PATH"], language, pack, "babelgum", "babelgum", "babelgum"),
                                                                                   })
                                                                       )
 
-                    bg_vocab_lim, bg_pron_lim, bg_lm_lim = env.FilterWords(
-                        [os.path.join(base_path, "bg_%s_%d_%f_noprobabilities_%s" % (model, size, weight, x)) for x in ["vocab_lim.txt", "pronunciations_lim.txt", "lim_lm.3gm.arpabo.gz"]],
-                        [bg_vocab, bg_pron, bg_lm, oracle_vocabulary]
-                        )
+                    # bg_vocab_lim, bg_pron_lim, bg_lm_lim = env.FilterWords(
+                    #     [os.path.join(base_path, "bg_%s_%d_%f_noprobabilities_%s" % (model, size, weight, x)) for x in ["vocab_lim.txt", "pronunciations_lim.txt", "lim_lm.3gm.arpabo.gz"]],
+                    #     [bg_vocab, bg_pron, bg_lm, oracle_vocabulary]
+                    #     )
 
-                    babelgum_limited_experiment = env.CreateSmallASRDirectory(Dir(os.path.join(base_path, "experiments", "limited_babelgum")),
-                                                                      experiment({"VOCABULARY_FILE" : bg_vocab_lim.rstr(),
-                                                                                  "PRONUNCIATIONS_FILE" : bg_pron_lim.rstr(),
-                                                                                  "LANGUAGE_MODEL_FILE" : bg_lm_lim.rstr(),
-                                                                                  })
-                                                                      )
+                    # babelgum_limited_experiment = env.CreateSmallASRDirectory(Dir(os.path.join(base_path, "experiments", "limited_babelgum")),
+                    #                                                   experiment({"VOCABULARY_FILE" : bg_vocab_lim.rstr(),
+                    #                                                               "PRONUNCIATIONS_FILE" : bg_pron_lim.rstr(),
+                    #                                                               "LANGUAGE_MODEL_FILE" : bg_lm_lim.rstr(),
+                    #                                                               })
+                    #                                                   )
                 

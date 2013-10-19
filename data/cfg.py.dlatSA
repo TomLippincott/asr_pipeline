@@ -31,7 +31,7 @@ topoFile        = '${TOPO_FILE.abspath}'
 ttreeFile        = '${TOPO_TREE_FILE.abspath}'
 
 # models - depend on the vocabulary
-dictFile        = '${DICTIONARY_FILE.abspath}'
+dictFile        = '${PRONUNCIATIONS_FILE.abspath}'
 vocab        = '${VOCABULARY_FILE.abspath}'
 lm        = '${LANGUAGE_MODEL_FILE.abspath}'
 graph        = '${GRAPH_OFILE.abspath}'
