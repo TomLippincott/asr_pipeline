@@ -134,7 +134,7 @@ for i in range(options.number):
     dlatsa_job = Job(name="dlatsa_j%d_n%d" % (i, options.number),
                      dependencies=dlatsa_construct_jobs,
                      resources={},
-                     commands=["%s/tools/attila/attila test.py -w %f -n %s -j %s" % (options.attila_path, options.acw, options.number, i)],
+                     commands=["%s/tools/attila/attila test.py -w %f -n %s -j %s -l 1" % (options.attila_path, options.acw, options.number, i)],
                      #"%s/tools/attila/attila consensus.py -n %s -j %s" % (options.attila_path, options.number, i)],
                      path=options.config_path,
                      stdout_path=options.stdout,
