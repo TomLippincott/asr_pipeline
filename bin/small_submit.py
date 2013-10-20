@@ -11,7 +11,7 @@ class PathAction(argparse.Action):
     def __call__(self, parser, namespace, values, option_string):
         apath = os.path.abspath(values)
         try:
-            os.makepaths(apath)
+            os.makedirs(apath)
         except:
             pass
         if not os.path.exists(apath):            

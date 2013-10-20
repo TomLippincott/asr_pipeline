@@ -69,12 +69,7 @@ for language, packs in env["LANGUAGES"].iteritems():
         locale = locations["locale"]
         base_path = os.path.join("work", language, pack)
         output_path = os.path.join(env["OUTPUT_PATH"], language, pack)
-        for x in ["baseline", "triple_oracle"]:
-            try:
-                os.makedirs(os.path.join(output_path, x))
-            except:
-                pass
-
+        
         def experiment(substitutions={}):
             files = {"LANGUAGE_MODEL_FILE" : None, #os.path.join(models, "models", "lm.3gm.arpabo.gz"),
                      "PRONUNCIATIONS_FILE" : None, #os.path.join(models, "models", "dict.test"),
@@ -156,19 +151,8 @@ for language, packs in env["LANGUAGES"].iteritems():
                     [os.path.join(base_path, x) for x in ["bg_%s_%d_pron_correct_pron.txt" % (model, size), "bg_%s_%d_vocab_correct_pron.txt" % (model, size)]],
                     [all_bg_pronunciations, oracle_pronunciations])
 
-                # for weight in [.1]:
-                #     continue
-                #     bg_vocab, bg_pron, bg_lm = env.AugmentLanguageModel(
-                #         [os.path.join(base_path, "bg_%s_%d_%f_probabilities_%s" % (model, size, weight, x)) for x in ["vocab.txt", "pronunciations.txt", "lm.3gm.arpabo.gz"]],
-                #         [baseline_pronunciations, baseline_lm, all_bg_pronunciations, all_bg_probabilities, env.Value(weight)]
-                #         )
-                #     bg_vocab_lim, bg_pron_lim, bg_lm_lim = env.FilterWords(
-                #         [os.path.join(base_path, "bg_%s_%d_%f_probabilities_%s" % (model, size, weight, x)) for x in ["vocab_lim.txt", "pronunciations_lim.txt", "lim_lm.3gm.arpabo.gz"]],
-                #         [bg_vocab, bg_pron, bg_lm, oracle_vocabulary]
-                #         )
-
                 for weight in [.1]:
-                    continue
+                    #continue
                     bg_vocab, bg_pron, bg_lm = env.AugmentLanguageModel(
                         [os.path.join(base_path, "bg_%s_%d_%f_noprobabilities_%s" % (model, size, weight, x)) for x in ["vocab.txt", "pronunciations.txt", "lm.3gm.arpabo.gz"]],
                         [baseline_pronunciations, baseline_lm, all_bg_pronunciations, env.Value(weight)]
