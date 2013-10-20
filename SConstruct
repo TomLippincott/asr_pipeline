@@ -152,7 +152,6 @@ for language, packs in env["LANGUAGES"].iteritems():
                     [all_bg_pronunciations, oracle_pronunciations])
 
                 for weight in [.1]:
-                    #continue
                     bg_vocab, bg_pron, bg_lm = env.AugmentLanguageModel(
                         [os.path.join(base_path, "bg_%s_%d_%f_noprobabilities_%s" % (model, size, weight, x)) for x in ["vocab.txt", "pronunciations.txt", "lm.3gm.arpabo.gz"]],
                         [baseline_pronunciations, baseline_lm, all_bg_pronunciations, env.Value(weight)]
@@ -166,15 +165,16 @@ for language, packs in env["LANGUAGES"].iteritems():
                                                                                   })
                                                                       )
 
-                    # bg_vocab_lim, bg_pron_lim, bg_lm_lim = env.FilterWords(
-                    #     [os.path.join(base_path, "bg_%s_%d_%f_noprobabilities_%s" % (model, size, weight, x)) for x in ["vocab_lim.txt", "pronunciations_lim.txt", "lim_lm.3gm.arpabo.gz"]],
-                    #     [bg_vocab, bg_pron, bg_lm, oracle_vocabulary]
-                    #     )
+                    bg_vocab_lim, bg_pron_lim, bg_lm_lim = env.FilterWords(
+                        [os.path.join(base_path, "bg_%s_%d_%f_noprobabilities_%s" % (model, size, weight, x)) for x in ["vocab_lim.txt", "pronunciations_lim.txt", "lim_lm.3gm.arpabo.gz"]],
+                        [bg_vocab, bg_pron, bg_lm, oracle_vocabulary]
+                        )
 
-                    # babelgum_limited_experiment = env.CreateSmallASRDirectory(Dir(os.path.join(base_path, "experiments", "limited_babelgum")),
-                    #                                                   experiment({"VOCABULARY_FILE" : bg_vocab_lim.rstr(),
-                    #                                                               "PRONUNCIATIONS_FILE" : bg_pron_lim.rstr(),
-                    #                                                               "LANGUAGE_MODEL_FILE" : bg_lm_lim.rstr(),
-                    #                                                               })
-                    #                                                   )
+                    babelgum_limited_experiment = env.CreateSmallASRDirectory(Dir(os.path.join("work", "experiments", language, pack, "limited_babelgum", "babelgum", "babelgum")),
+                                                                      experiment({"VOCABULARY_FILE" : bg_vocab_lim.rstr(),
+                                                                                  "PRONUNCIATIONS_FILE" : bg_pron_lim.rstr(),
+                                                                                  "LANGUAGE_MODEL_FILE" : bg_lm_lim.rstr(),
+                                                                                  "OUTPUT_PATH" : os.path.join(env["OUTPUT_PATH"], language, pack, "limited_babelgum", "babelgum", "babelgum"),
+                                                                                  })
+                                                                      )
                 
