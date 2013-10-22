@@ -37,9 +37,11 @@ else:
     logging.basicConfig(format='%(asctime)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S', level=logging.INFO)
 
 default_skeleton = """
+#!/bin/sh
 #PBS -N %(NAME)s
-#PBS -l cput=20:30:00        
-#PBS -l walltime=20:30:00        
+#PBS -W group_list=yeticcls
+#PBS -l cput=5:00:00        
+#PBS -l walltime=5:00:00        
 %(PBS_OPTIONS)s
 
 cd %(PATH)s
@@ -62,7 +64,7 @@ class Job():
         self.stderr_path = stderr_path
 
     def __str__(self):
-        lines = ["#PBS -N %s" % self.name] + ["#PBS -l %s=%s" % (k, v) for k, v in self.resources.iteritems()]
+        lines = ["#PBS -N %s" % self.name, "#PBS -W group_list=yeticcls"] + ["#PBS -l %s=%s" % (k, v) for k, v in self.resources.iteritems()]
         if self.stdout_path:
             lines.append("#PBS -o %s" % os.path.join(self.stdout_path, "%s.out" % (self.name)))
         if self.stderr_path:
@@ -115,21 +117,21 @@ nodes = get_nodes(options.commit)
 logging.info("Available nodes: %s", ", ".join(nodes))
 
 
-logging.info("launching speaker-adapted construction jobs, one per node")
-dlatsa_construct_job = Job(name="dlatsa_construct_%s" % node,
+logging.info("launching speaker-adapted construction job")
+dlatsa_construct_job = Job(name="dlatsa_construct",
                            commands=["%s/tools/attila/attila construct.py" % options.attila_path],
                            path=options.config_path,
                            stdout_path=options.stdout,
                            stderr_path=options.stderr)
+dlatsa_construct_job.submit(options.commit)
 
 logging.info("launching %d speaker-adapted training jobs", options.number)
-dlatsa_jobs = []
-for i in range(options.number):
-    dlatsa_job = Job(name="dlatsa_j%d_n%d" % (i, options.number),
-                     dependencies=[dlatsa_construct_job],
-                     resources={},
-                     commands=["%s/tools/attila/attila test.py -w %f -n %s -j %s -l 1" % (options.attila_path, options.acw, options.number, i)],
-                     path=options.config_path,
-                     stdout_path=options.stdout,
-                     stderr_path=options.stderr)
-    dlatsa_job.submit(options.commit)
+dlatsa_job = Job(name="dlatsa_j%d_n%d" % (i, options.number),
+                 dependencies=[dlatsa_construct_job],
+                 resources={},
+                 array=options.number,
+                 commands=["%s/tools/attila/attila test.py -w %f -n %s -j ${PBS_ARRAYID} -l 1" % (options.attila_path, options.acw, options.number, i)],
+                 path=options.config_path,
+                 stdout_path=options.stdout,
+                 stderr_path=options.stderr)
+dlatsa_job.submit(options.commit)
