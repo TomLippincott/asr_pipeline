@@ -16,9 +16,10 @@ import shlex
 import time
 import shutil
 import tempfile
-import arpabo
 import codecs
 import locale
+import arpabo
+from arpabo import ProbabilityList, Arpabo, Pronunciations, Vocabulary
 
 
 def meta_open(file_name, mode="r"):
@@ -517,6 +518,23 @@ def filter_words(target, source, env):
     return None
 
 
+def filter_babel_gum(target, source, env):
+    with meta_open(source[0].rstr()) as pron_ifd, meta_open(source[1].rstr()) as prob_ifd, meta_open(source[2].rstr()) as lim_ifd:
+        pron = Pronunciations(pron_ifd)
+        logging.info("%s", pron)
+        prob = ProbabilityList(prob_ifd)
+        logging.info("%s", prob)
+        filt = Vocabulary(lim_ifd)
+        logging.info("%s", filt)
+        pron.filter_by(filt)
+        logging.info("%s", pron)
+        prob.filter_by(filt)
+        logging.info("%s", prob)
+        with meta_open(target[0].rstr(), "w") as pron_ofd, meta_open(target[0].rstr(), "w") as prob_ofd:
+            pron_ofd.write(pron.format())
+            prob_ofd.write(prob.format())
+    return None
+
 def TOOLS_ADD(env):
     env.Append(BUILDERS = {"AppenToAttila" : Builder(action=appen_to_attila),
                            "PronunciationsToVocabulary" : Builder(action=pronunciations_to_vocabulary),
@@ -533,5 +551,6 @@ def TOOLS_ADD(env):
                            "ReplacePronunciations" : Builder(action=replace_pronunciations),
                            #"ReplaceProbabilities" : Builder(action=replace_probabilities),
                            "FilterWords" : Builder(action=filter_words),                           
+                           "FilterBabelGum" : Builder(action=filter_babel_gum),
                            })
                

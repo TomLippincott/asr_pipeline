@@ -1,8 +1,9 @@
 import sys
 import os.path
 import logging
-import asr_tools
 from glob import glob
+import asr_tools
+import mpi_tools
 
 #
 # load variable definitions from custom.py, and define them for SCons (seems like it should logically
@@ -35,7 +36,7 @@ vars.AddVariables(
 # create the actual build environment we'll be using: basically, just import the builders from site_scons/kws_tools.py
 #
 env = Environment(variables=vars, ENV={}, TARFLAGS="-c -z", TARSUFFIX=".tgz",
-                  tools=["default", "textfile"] + [x.TOOLS_ADD for x in [asr_tools]],
+                  tools=["default", "textfile"] + [x.TOOLS_ADD for x in [asr_tools, mpi_tools]],
                   BUILDERS={"CopyFile" : Builder(action="cp ${SOURCE} ${TARGET}")}
                   )
 
@@ -122,7 +123,7 @@ for language, packs in env["LANGUAGES"].iteritems():
                                                                       })
                                                           )
 
-        # oracle experiment
+        # triple-oracle experiment
         oracle_pronunciations, oracle_pnsp, oracle_tags = env.AppenToAttila([os.path.join(base_path, x) for x in ["oracle_pronunciations.txt", "oracle_pnsp.txt", "oracle_tags.txt"]],
                                                                         [os.path.join(data, "conversational", "reference_materials", "lexicon.txt"),
                                                                          os.path.join(data, "scripted", "reference_materials", "lexicon.txt"),
@@ -133,6 +134,7 @@ for language, packs in env["LANGUAGES"].iteritems():
         oracle_lm = env.IBMTrainLanguageModel(os.path.join(base_path, "oracle_lm.3gm.arpabo.gz"), [oracle_text, oracle_text_words, env.Value(3)])
 
 
+        oracle_path = os.path.join("work", "experiments", language, pack, "oracle", "oracle", "oracle")
         triple_oracle_experiment = env.CreateSmallASRDirectory(Dir(os.path.join("work", "experiments", language, pack, "oracle", "oracle", "oracle")),
                                                                experiment({"VOCABULARY_FILE" : oracle_vocabulary[0].rstr(),
                                                                            "PRONUNCIATIONS_FILE" : oracle_pronunciations.rstr(),
@@ -141,11 +143,27 @@ for language, packs in env["LANGUAGES"].iteritems():
                                                                            })
                                                                )
         
+        construct = env.SubmitJob(os.path.join("work", "experiments", language, pack, "oracle", "oracle", "oracle", "construct.timestamp"), 
+                                  [triple_oracle_experiment, env.Value({"name" : "construct",
+                                                                        "commands" : ["${ATTILA_PATH}/tools/attila/attila construct.py"],
+                                                                        "path" : oracle_path,
+                                                                         })])
+
+        #test = env.SubmitJob(os.path.join("work", "experiments", language, pack, "oracle", "oracle", "oracle", "test.timestamp"), 
+        #                     [construct])
+
+        #score = env.SubmitJob(os.path.join("work", "experiments", language, pack, "oracle", "oracle", "oracle", "score.timestamp"), 
+        #                      [test])
+
+        # babelgum experiments
         for model, (probs, prons) in locations.get("babelgum", {}).iteritems():
+            continue
             for size in [50000]:
                 all_bg_probabilities, all_bg_pronunciations = env.BabelGumLexicon([os.path.join(base_path, x) for x in ["babelgum_%s_%d_probabilities.txt" % (model, size), 
                                                                                                                         "babelgum_%s_%d_pronunciations.txt" % (model, size)]], 
                                                                                   [probs, prons, env.Value(size)])
+                env.NoClean([all_bg_probabilities, all_bg_pronunciations])
+
 
                 bg_pron_correct_pron, bg_vocab_correct_pron = env.ReplacePronunciations(
                     [os.path.join(base_path, x) for x in ["bg_%s_%d_pron_correct_pron.txt" % (model, size), "bg_%s_%d_vocab_correct_pron.txt" % (model, size)]],
@@ -165,16 +183,24 @@ for language, packs in env["LANGUAGES"].iteritems():
                                                                                   })
                                                                       )
 
-                    bg_vocab_lim, bg_pron_lim, bg_lm_lim = env.FilterWords(
-                        [os.path.join(base_path, "bg_%s_%d_%f_noprobabilities_%s" % (model, size, weight, x)) for x in ["vocab_lim.txt", "pronunciations_lim.txt", "lim_lm.3gm.arpabo.gz"]],
-                        [bg_vocab, bg_pron, bg_lm, oracle_vocabulary]
-                        )
+                    lim_bg_pronunciations , lim_bg_probabilities = env.FilterBabelGum([os.path.join(base_path, "babelgum_basic_50000_lim_%s.txt") for x in ["pronunciations", "probabilities"]],
+                                                                                      [all_bg_pronunciations, all_bg_probabilities, oracle_vocabulary])
 
-                    babelgum_limited_experiment = env.CreateSmallASRDirectory(Dir(os.path.join("work", "experiments", language, pack, "limited_babelgum", "babelgum", "babelgum")),
-                                                                      experiment({"VOCABULARY_FILE" : bg_vocab_lim.rstr(),
-                                                                                  "PRONUNCIATIONS_FILE" : bg_pron_lim.rstr(),
-                                                                                  "LANGUAGE_MODEL_FILE" : bg_lm_lim.rstr(),
-                                                                                  "OUTPUT_PATH" : os.path.join(env["OUTPUT_PATH"], language, pack, "limited_babelgum", "babelgum", "babelgum"),
-                                                                                  })
-                                                                      )
+                    #bg_vocab_lim, bg_pron_lim, bg_lm_lim = env.AugmentLanguageModel(
+                    #    [os.path.join(base_path, "bg_%s_%d_%f_noprobabilities_%s" % (model, size, weight, x)) for x in ["vocab_lim.txt", "pronunciations_lim.txt", "lim_lm.3gm.arpabo.gz"]],
+                    #    [baseline_pronunciations, baseline_lm, lim_bg_pronunciations, env.Value(weight)]
+                    #    )
+
+                    #bg_vocab_lim, bg_pron_lim, bg_lm_lim = env.FilterWords(
+                    #    [os.path.join(base_path, "bg_%s_%d_%f_noprobabilities_%s" % (model, size, weight, x)) for x in ["vocab_lim.txt", "pronunciations_lim.txt", "lim_lm.3gm.arpabo.gz"]],
+                    #    [bg_vocab, bg_pron, bg_lm, oracle_vocabulary]
+                    #    )
+
+                    #babelgum_limited_experiment = env.CreateSmallASRDirectory(Dir(os.path.join("work", "experiments", language, pack, "limited_babelgum", "babelgum", "babelgum")),
+                    #                                                  experiment({"VOCABULARY_FILE" : bg_vocab_lim.rstr(),
+                    #                                                              "PRONUNCIATIONS_FILE" : bg_pron_lim.rstr(),
+                    #                                                              "LANGUAGE_MODEL_FILE" : bg_lm_lim.rstr(),
+                    #                                                              "OUTPUT_PATH" : os.path.join(env["OUTPUT_PATH"], language, pack, "limited_babelgum", "babelgum", "babelgum"),
+                    #                                                              })
+                    #                                                  )
                 
