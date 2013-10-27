@@ -126,11 +126,11 @@ dlatsa_construct_job = Job(name="dlatsa_construct",
 dlatsa_construct_job.submit(options.commit)
 
 logging.info("launching %d speaker-adapted training jobs", options.number)
-dlatsa_job = Job(name="dlatsa_j%d_n%d" % (i, options.number),
+dlatsa_job = Job(name="dlatsa_n%d" % (options.number),
                  dependencies=[dlatsa_construct_job],
                  resources={},
                  array=options.number,
-                 commands=["%s/tools/attila/attila test.py -w %f -n %s -j ${PBS_ARRAYID} -l 1" % (options.attila_path, options.acw, options.number, i)],
+                 commands=["%s/tools/attila/attila test.py -w %f -n %s -j ${PBS_ARRAYID} -l 1" % (options.attila_path, options.acw, options.number)],
                  path=options.config_path,
                  stdout_path=options.stdout,
                  stderr_path=options.stderr)

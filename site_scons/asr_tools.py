@@ -394,7 +394,7 @@ def create_small_asr_directory(target, source, env):
     # the first three sources are the original configuration dictionaries
     files, directories, parameters = [x.read() for x in source[:3]]
     files = {k : env.File(v) for k, v in files.iteritems()}
-    directories = {k : env.Dir(v) for k, v in directories.iteritems()}
+    directories = {k : env.Dir(os.path.abspath(v)) for k, v in directories.iteritems()}
 
     # the remainder are template files
     templates = source[3:]
@@ -402,8 +402,8 @@ def create_small_asr_directory(target, source, env):
     # create one big configuration dictionary
     config = {k : v for k, v in sum([list(y) for y in [files.iteritems(), directories.iteritems(), parameters.iteritems()]], [])}
     config["GRAPH_OFILE"] = env.File(os.path.join(config["OUTPUT_PATH"].rstr(), "dnet.bin.gz"))
-    config["CTM_OPATH"] = env.Dir(os.path.join(config["OUTPUT_PATH"].rstr(), "ctm"))
-    config["LAT_OPATH"] = env.Dir(os.path.join(config["OUTPUT_PATH"].rstr(), "lat"))
+    config["CTM_OPATH"] = env.Dir(os.path.abspath(os.path.join(config["OUTPUT_PATH"].rstr(), "ctm")))
+    config["LAT_OPATH"] = env.Dir(os.path.abspath(os.path.join(config["OUTPUT_PATH"].rstr(), "lat")))
 
     # print dictionary for debugging
     logging.debug("%s", "\n".join(["%s = %s" % (k, v) for k, v in config.iteritems()]))
@@ -521,19 +521,23 @@ def filter_words(target, source, env):
 def filter_babel_gum(target, source, env):
     with meta_open(source[0].rstr()) as pron_ifd, meta_open(source[1].rstr()) as prob_ifd, meta_open(source[2].rstr()) as lim_ifd:
         pron = Pronunciations(pron_ifd)
-        logging.info("%s", pron)
+        logging.info("Old pronunciations: %s", pron)
         prob = ProbabilityList(prob_ifd)
-        logging.info("%s", prob)
+        logging.info("Old probabilities: %s", prob)
         filt = Vocabulary(lim_ifd)
-        logging.info("%s", filt)
+        logging.info("Correct words: %s", filt)
         pron.filter_by(filt)
-        logging.info("%s", pron)
+        logging.info("New pronunciations: %s", pron)
         prob.filter_by(filt)
-        logging.info("%s", prob)
+        logging.info("New probabilities: %s", prob)
         with meta_open(target[0].rstr(), "w") as pron_ofd, meta_open(target[0].rstr(), "w") as prob_ofd:
             pron_ofd.write(pron.format())
             prob_ofd.write(prob.format())
     return None
+
+def score_results(target, source, env, for_signature):
+    return "${PYTHON_INTERPRETER} ${SCORE_SCRIPT} --indusDB ${INDUS_DB} --sclite ${SCLITE_BINARY} ${SOURCES[0].read()} ${SOURCES[1].read()}/"
+
 
 def TOOLS_ADD(env):
     env.Append(BUILDERS = {"AppenToAttila" : Builder(action=appen_to_attila),
@@ -552,5 +556,6 @@ def TOOLS_ADD(env):
                            #"ReplaceProbabilities" : Builder(action=replace_probabilities),
                            "FilterWords" : Builder(action=filter_words),                           
                            "FilterBabelGum" : Builder(action=filter_babel_gum),
+                           "ScoreResults" : Builder(generator=score_results),
                            })
                
