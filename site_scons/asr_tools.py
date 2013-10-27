@@ -530,7 +530,7 @@ def filter_babel_gum(target, source, env):
         logging.info("New pronunciations: %s", pron)
         prob.filter_by(filt)
         logging.info("New probabilities: %s", prob)
-        with meta_open(target[0].rstr(), "w") as pron_ofd, meta_open(target[0].rstr(), "w") as prob_ofd:
+        with meta_open(target[0].rstr(), "w") as pron_ofd, meta_open(target[1].rstr(), "w") as prob_ofd:
             pron_ofd.write(pron.format())
             prob_ofd.write(prob.format())
     return None
